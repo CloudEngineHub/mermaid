@@ -46,6 +46,7 @@ DOUBLECIRCLEEND
 DOUBLECIRCLESTART
 DQUOTE
 DSTART
+EBNF
 edgesep
 EMPTYSTR
 enddate
@@ -81,6 +82,7 @@ LINKSTYLE
 LLABEL
 loglevel
 LOGMSG
+LPAREN
 lookaheads
 mdast
 metafile
@@ -88,6 +90,7 @@ minlen
 Mstartx
 MULT
 NODIR
+nonterminal
 NSTR
 outdir
 Qcontrolx
@@ -101,6 +104,7 @@ rewritelinks
 rgba
 RIGHTOF
 roughjs
+RPAREN
 sankey
 sequencenumber
 shrc
