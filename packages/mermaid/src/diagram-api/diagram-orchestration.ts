@@ -34,6 +34,7 @@ import { registerDiagram } from './diagramAPI.js';
 import { treemap } from '../diagrams/treemap/detector.js';
 import wardley from '../diagrams/wardley/wardleyDetector.js';
 import { cynefin } from '../diagrams/cynefin/cynefinDetector.js';
+import { railroad } from '../diagrams/railroad/railroadDetector.js';
 import '../type.d.ts';
 
 let hasLoadedDiagrams = false;
@@ -111,6 +112,7 @@ export const addDiagrams = () => {
     radar,
     ishikawa,
     treemap,
+    railroad,
     venn,
     wardley,
     cynefin
