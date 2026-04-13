@@ -19,7 +19,6 @@ const COLOR_VALUE_PATTERN =
   /^#(?:[\da-f]{3,4}|[\da-f]{6}|[\da-f]{8})$|^(?:rgb|rgba|hsl|hsla|hwb|lab|lch|oklab|oklch)\([\d\s%+,./-]+\)$|^[a-z]+$/i;
 const FONT_FAMILY_PATTERN = /^[\w "',.-]+$/;
 const RAILROAD_STYLE_OPTION_KEYS = new Set<keyof RailroadStyleOptions>([
-  'orientation',
   'compactMode',
   'padding',
   'verticalSeparation',
@@ -203,7 +202,6 @@ export const buildRailroadStyleOptions = (
   } as RailroadStyleOptions;
 
   return {
-    orientation: railroadOptions.orientation ?? themeDefaults.orientation,
     compactMode: railroadOptions.compactMode ?? themeDefaults.compactMode,
     padding: sanitizeNumberValue(railroadOptions.padding, themeDefaults.padding),
     verticalSeparation: sanitizeNumberValue(
