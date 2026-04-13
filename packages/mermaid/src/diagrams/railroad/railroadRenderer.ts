@@ -540,7 +540,7 @@ class RailroadRenderer {
   /**
    * Render a single rule
    */
-  renderRule(rule: RailroadRule, y: number): { height: number } {
+  renderRule(rule: RailroadRule, y: number): { height: number; width: number } {
     const group = this.svg
       .append('g')
       .attr('class', 'railroad-rule')
@@ -606,6 +606,7 @@ class RailroadRenderer {
 
     return {
       height: Math.max(40, result.dimensions.height + 20),
+      width: nameWidth + 20 + result.dimensions.width + 10 + this.config.markerRadius,
     };
   }
 
@@ -619,7 +620,7 @@ class RailroadRenderer {
     for (const rule of rules) {
       const result = this.renderRule(rule, y);
       y += result.height + this.config.verticalSeparation;
-      maxWidth = Math.max(maxWidth, 800); // Estimate for now
+      maxWidth = Math.max(maxWidth, result.width);
     }
 
     return {
