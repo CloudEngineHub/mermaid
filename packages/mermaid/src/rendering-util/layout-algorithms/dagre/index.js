@@ -43,6 +43,7 @@ const getDefaultSelfLoopSide = (rankdir = 'TB') => {
   }
 };
 
+// Use dagre's dummy self-loop placement as a hint, so loops are not always forced above the node.
 const getSelfLoopSide = (graph, node, segments, originalNodeId, rankdir) => {
   const layoutHints = [];
   const dummyNodeIds = new Set();
@@ -96,6 +97,7 @@ const getSelfLoopSide = (graph, node, segments, originalNodeId, rankdir) => {
   return getDefaultSelfLoopSide(rankdir);
 };
 
+// Build a compact loop around the node instead of rendering dagre's long dummy-edge route.
 const getSelfLoopPoints = (node, side = 'top', yOffset = 0, labelWidth = 0) => {
   const x = node.x;
   const y = node.y - yOffset;
@@ -166,6 +168,7 @@ const getSelfLoopLabelPosition = (node, points, side = 'top', yOffset = 0, label
   }
 };
 
+// Convert internal dagre layout edges into the public SVG edges we actually render.
 export const getEdgesToRender = (graph, yOffset = 0) => {
   const selfLoopEdgeGroups = new Map();
   const edgesToRender = [];
@@ -186,6 +189,7 @@ export const getEdgesToRender = (graph, yOffset = 0) => {
 
   selfLoopEdgeGroups.forEach((segments) => {
     if (segments.length !== 3) {
+      // Unexpected self-loop state: preserve the old rendering behavior rather than dropping edges.
       segments.forEach((segment) => edgesToRender.push(segment));
       return;
     }
@@ -206,6 +210,7 @@ export const getEdgesToRender = (graph, yOffset = 0) => {
       width: middleSegment.edge.width,
       height: middleSegment.edge.height,
     };
+    // Dagre uses the dummy route for layout; the SVG output should still be one logical edge.
     const side = getSelfLoopSide(graph, node, segments, originalEdge.start, rankdir);
     const points = getSelfLoopPoints(node, side, yOffset, label.width ?? 0);
     const labelPosition = getSelfLoopLabelPosition(node, points, side, yOffset, label);
@@ -359,6 +364,7 @@ const recursiveRender = async (_elem, graph, diagramType, id, parentCluster, sit
         clusterDb.get(e.w)
       );
       if (edge.selfLoop) {
+        // Only the middle layout segment owns the label, using the original edge id for lookup.
         if (edge.selfLoop.order !== 1) {
           return;
         }
@@ -527,8 +533,8 @@ export const render = async (data4Layout, svg) => {
 
   log.debug('Edges:', data4Layout.edges);
   data4Layout.edges.forEach((edge) => {
-    // Handle self-loops
     if (edge.start === edge.end) {
+      // Keep the dagre dummy-node workaround for layout, then merge these segments before rendering.
       const nodeId = edge.start;
       const specialId1 = nodeId + '---' + nodeId + '---1';
       const specialId2 = nodeId + '---' + nodeId + '---2';
@@ -566,6 +572,7 @@ export const render = async (data4Layout, svg) => {
       const edge1 = structuredClone(edge);
       const edgeMid = structuredClone(edge);
       const edge2 = structuredClone(edge);
+      // Preserve the original edge so the final SVG path uses the logical self-loop id and data.
       edge1.originalEdge = originalEdge;
       edge1.selfLoop = { id: originalEdge.id, order: 0 };
       edgeMid.originalEdge = originalEdge;
