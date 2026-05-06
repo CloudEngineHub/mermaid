@@ -44,7 +44,7 @@ const getDefaultSelfLoopSide = (rankdir = 'TB') => {
 };
 
 const shouldMergeSelfLoopSegments = (diagramType) =>
-  diagramType === 'flowchart' || diagramType === 'flowchart-v2';
+  diagramType === 'flowchart' || diagramType === 'flowchart-v2' || diagramType === 'stateDiagram';
 
 // Use dagre's dummy self-loop placement as a hint, so loops are not always forced above the node.
 const getSelfLoopSide = (graph, node, segments, originalNodeId, rankdir) => {

@@ -5,10 +5,6 @@ import { getEdgesToRender } from './index.js';
 import mermaid from '../../../mermaid.js';
 import { mermaidAPI } from '../../../mermaidAPI.js';
 
-const setOnProtectedConstant = (object, key, value) => {
-  object[key] = value;
-};
-
 const setupDom = () => {
   const oldWindow = globalThis.window;
   const oldDocument = globalThis.document;
@@ -16,24 +12,24 @@ const setupDom = () => {
   const dom = new JSDOM('<html lang="en"><body><div id="container"></div></body></html>', {
     resources: 'usable',
     beforeParse(window) {
-      setOnProtectedConstant(window.Element.prototype, 'getBBox', () => ({
+      window.Element.prototype.getBBox = () => ({
         x: 0,
         y: 0,
         width: 100,
         height: 50,
-      }));
-      setOnProtectedConstant(window.Element.prototype, 'getComputedTextLength', () => 50);
+      });
+      window.Element.prototype.getComputedTextLength = () => 50;
     },
   });
 
-  setOnProtectedConstant(globalThis, 'window', dom.window);
-  setOnProtectedConstant(globalThis, 'document', dom.window.document);
-  setOnProtectedConstant(globalThis, 'MutationObserver', undefined);
+  globalThis.window = dom.window;
+  globalThis.document = dom.window.document;
+  globalThis.MutationObserver = undefined;
 
   return () => {
-    setOnProtectedConstant(globalThis, 'window', oldWindow);
-    setOnProtectedConstant(globalThis, 'document', oldDocument);
-    setOnProtectedConstant(globalThis, 'MutationObserver', oldMutationObserver);
+    globalThis.window = oldWindow;
+    globalThis.document = oldDocument;
+    globalThis.MutationObserver = oldMutationObserver;
   };
 };
 
