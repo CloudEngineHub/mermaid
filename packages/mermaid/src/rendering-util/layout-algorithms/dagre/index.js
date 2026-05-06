@@ -43,6 +43,9 @@ const getDefaultSelfLoopSide = (rankdir = 'TB') => {
   }
 };
 
+const shouldMergeSelfLoopSegments = (diagramType) =>
+  diagramType === 'flowchart' || diagramType === 'flowchart-v2';
+
 // Use dagre's dummy self-loop placement as a hint, so loops are not always forced above the node.
 const getSelfLoopSide = (graph, node, segments, originalNodeId, rankdir) => {
   const layoutHints = [];
@@ -169,14 +172,14 @@ const getSelfLoopLabelPosition = (node, points, side = 'top', yOffset = 0, label
 };
 
 // Convert internal dagre layout edges into the public SVG edges we actually render.
-export const getEdgesToRender = (graph, yOffset = 0) => {
+export const getEdgesToRender = (graph, yOffset = 0, { mergeSelfLoops = true } = {}) => {
   const selfLoopEdgeGroups = new Map();
   const edgesToRender = [];
   const rankdir = graph.graph()?.rankdir;
 
   graph.edges().forEach((e) => {
     const edge = graph.edge(e);
-    if (edge.selfLoop) {
+    if (mergeSelfLoops && edge.selfLoop) {
       const key = edge.selfLoop.id;
       if (!selfLoopEdgeGroups.has(key)) {
         selfLoopEdgeGroups.set(key, []);
@@ -260,6 +263,7 @@ const recursiveRender = async (_elem, graph, diagramType, id, parentCluster, sit
   const edgePaths = elem.insert('g').attr('class', 'edgePaths');
   const edgeLabels = elem.insert('g').attr('class', 'edgeLabels');
   const nodes = elem.insert('g').attr('class', 'nodes');
+  const mergeSelfLoops = shouldMergeSelfLoopSegments(diagramType);
 
   // Insert nodes, this will insert them into the dom and each node will get a size. The size is updated
   // to the abstract node and is later used by dagre for the layout
@@ -363,7 +367,7 @@ const recursiveRender = async (_elem, graph, diagramType, id, parentCluster, sit
         clusterDb.get(e.v),
         clusterDb.get(e.w)
       );
-      if (edge.selfLoop) {
+      if (mergeSelfLoops && edge.selfLoop) {
         // Only the middle layout segment owns the label, using the original edge id for lookup.
         if (edge.selfLoop.order !== 1) {
           return;
@@ -473,7 +477,7 @@ const recursiveRender = async (_elem, graph, diagramType, id, parentCluster, sit
 
   // Move the edge labels to the correct place after layout
   const edgeOffsetY = subGraphTitleTotalMargin / 2;
-  const edgesToRender = getEdgesToRender(graph, edgeOffsetY);
+  const edgesToRender = getEdgesToRender(graph, edgeOffsetY, { mergeSelfLoops });
 
   edgesToRender.forEach(function ({ edge, start, end }) {
     log.info('Edge ' + start + ' -> ' + end + ': ' + JSON.stringify(edge), edge);

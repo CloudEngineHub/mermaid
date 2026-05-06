@@ -189,6 +189,50 @@ describe('getEdgesToRender', () => {
     expect(edgesToRender[0]).toEqual({ edge, start: 'A', end: 'B' });
   });
 
+  it('keeps self-loop layout segments unchanged when merging is disabled', () => {
+    const graph = new Graph({ multigraph: true, compound: true });
+    graph.setNode('A', { id: 'A', x: 10, y: 10, width: 20, height: 20 });
+    graph.setNode('A---A---1', { id: 'A---A---1' });
+    graph.setNode('A---A---2', { id: 'A---A---2' });
+
+    const originalEdge = {
+      id: 'A-A',
+      start: 'A',
+      end: 'A',
+      label: 'loop',
+    };
+    const segment1 = {
+      ...originalEdge,
+      id: 'A-cyclic-special-1',
+      selfLoop: { id: 'A-A', order: 0 },
+      originalEdge,
+    };
+    const segmentMid = {
+      ...originalEdge,
+      id: 'A-cyclic-special-mid',
+      selfLoop: { id: 'A-A', order: 1 },
+      originalEdge,
+    };
+    const segment2 = {
+      ...originalEdge,
+      id: 'A-cyclic-special-2',
+      selfLoop: { id: 'A-A', order: 2 },
+      originalEdge,
+    };
+
+    graph.setEdge('A', 'A---A---1', segment1, 'A-cyclic-special-0');
+    graph.setEdge('A---A---1', 'A---A---2', segmentMid, 'A-cyclic-special-1');
+    graph.setEdge('A---A---2', 'A', segment2, 'A-cyclic-special-2');
+
+    const edgesToRender = getEdgesToRender(graph, 0, { mergeSelfLoops: false });
+
+    expect(edgesToRender).toEqual([
+      { edge: segment1, start: 'A', end: 'A---A---1' },
+      { edge: segmentMid, start: 'A---A---1', end: 'A---A---2' },
+      { edge: segment2, start: 'A---A---2', end: 'A' },
+    ]);
+  });
+
   it('renders a flowchart self-loop as one SVG path', async () => {
     const restoreDom = setupDom();
 
