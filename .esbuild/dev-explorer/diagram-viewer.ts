@@ -160,6 +160,8 @@ export class DevDiagramViewer extends LitElement {
     look: { state: true },
     mermaidLogLevel: { state: true },
     useMaxWidth: { state: true },
+    ignoreCrossLaneEdges: { state: true },
+    optimizeRanksByCrossings: { state: true },
     loading: { state: true },
     error: { state: true },
     source: { state: true },
@@ -174,6 +176,8 @@ export class DevDiagramViewer extends LitElement {
   declare look: MermaidLook;
   declare mermaidLogLevel: MermaidLogLevel;
   declare useMaxWidth: boolean;
+  declare ignoreCrossLaneEdges: boolean;
+  declare optimizeRanksByCrossings: boolean;
   declare loading: boolean;
   declare error: string;
   declare source: string;
@@ -198,6 +202,11 @@ export class DevDiagramViewer extends LitElement {
     const rendererParam = readUrlParam('renderer'); // legacy
     const logParam = readUrlParam('logLevel');
     const useMaxWidthParam = readUrlParam('useMaxWidth');
+    const ignoreCrossLaneEdgesParam =
+      readUrlParam('flowchart.ignoreCrossLaneEdges') ?? readUrlParam('ignoreCrossLaneEdges');
+    const optimizeRanksByCrossingsParam =
+      readUrlParam('flowchart.optimizeRanksByCrossings') ??
+      readUrlParam('optimizeRanksByCrossings');
 
     const storedTheme = readStorage('devExplorer.viewer.theme');
     const storedLayout = readStorage('devExplorer.viewer.layout');
@@ -205,6 +214,10 @@ export class DevDiagramViewer extends LitElement {
     const storedRenderer = readStorage('devExplorer.viewer.renderer'); // legacy
     const storedLog = readStorage('devExplorer.viewer.logLevel');
     const storedUseMaxWidth = readStorage('devExplorer.viewer.useMaxWidth');
+    const storedIgnoreCrossLaneEdges = readStorage('devExplorer.viewer.ignoreCrossLaneEdges');
+    const storedOptimizeRanksByCrossings = readStorage(
+      'devExplorer.viewer.optimizeRanksByCrossings'
+    );
     const storedSplitPosition = readStorage('devExplorer.viewer.splitPosition');
 
     this.theme = isTheme(themeParam)
@@ -226,6 +239,15 @@ export class DevDiagramViewer extends LitElement {
         : DEFAULT_MERMAID_LOG_LEVEL;
 
     this.useMaxWidth = parseBoolean(useMaxWidthParam) ?? parseBoolean(storedUseMaxWidth) ?? true;
+    const parsedIgnoreCrossLaneEdges = parseBoolean(ignoreCrossLaneEdgesParam);
+    const parsedOptimizeRanksByCrossings = parseBoolean(optimizeRanksByCrossingsParam);
+    this.ignoreCrossLaneEdges =
+      parsedIgnoreCrossLaneEdges ?? parseBoolean(storedIgnoreCrossLaneEdges) ?? true;
+    this.optimizeRanksByCrossings =
+      parsedOptimizeRanksByCrossings ??
+      (parsedIgnoreCrossLaneEdges != null
+        ? this.ignoreCrossLaneEdges
+        : (parseBoolean(storedOptimizeRanksByCrossings) ?? this.ignoreCrossLaneEdges));
     this.splitPosition = storedSplitPosition ? Number(storedSplitPosition) : 75;
 
     this.filePath = '';
@@ -261,7 +283,9 @@ export class DevDiagramViewer extends LitElement {
       changed.has('layout') ||
       changed.has('look') ||
       changed.has('mermaidLogLevel') ||
-      changed.has('useMaxWidth')
+      changed.has('useMaxWidth') ||
+      changed.has('ignoreCrossLaneEdges') ||
+      changed.has('optimizeRanksByCrossings')
     ) {
       // Re-render the currently loaded diagram with the new config without refetching.
       if (this.source) void this.#renderCurrentSource();
@@ -278,6 +302,11 @@ export class DevDiagramViewer extends LitElement {
     writeStorage('devExplorer.viewer.look', this.look);
     writeStorage('devExplorer.viewer.logLevel', this.mermaidLogLevel);
     writeStorage('devExplorer.viewer.useMaxWidth', String(this.useMaxWidth));
+    writeStorage('devExplorer.viewer.ignoreCrossLaneEdges', String(this.ignoreCrossLaneEdges));
+    writeStorage(
+      'devExplorer.viewer.optimizeRanksByCrossings',
+      String(this.optimizeRanksByCrossings)
+    );
     setUrlParams({
       theme: this.theme,
       layout: this.layout,
@@ -285,6 +314,10 @@ export class DevDiagramViewer extends LitElement {
       renderer: null, // drop legacy param
       logLevel: this.mermaidLogLevel,
       useMaxWidth: this.useMaxWidth ? '1' : '0',
+      'flowchart.ignoreCrossLaneEdges': this.ignoreCrossLaneEdges ? '1' : '0',
+      'flowchart.optimizeRanksByCrossings': this.optimizeRanksByCrossings ? '1' : '0',
+      ignoreCrossLaneEdges: null, // drop legacy/convenience alias
+      optimizeRanksByCrossings: null, // drop legacy/convenience alias
     });
   }
 
@@ -448,6 +481,8 @@ export class DevDiagramViewer extends LitElement {
       logLevel: this.mermaidLogLevel,
       flowchart: {
         useMaxWidth: this.useMaxWidth,
+        ignoreCrossLaneEdges: this.ignoreCrossLaneEdges,
+        optimizeRanksByCrossings: this.optimizeRanksByCrossings,
       },
     };
 
@@ -589,6 +624,32 @@ export class DevDiagramViewer extends LitElement {
                 this.#persistSettings();
               }}
               >useMaxWidth</sl-checkbox
+            >
+          </div>
+
+          <div class="control">
+            <sl-checkbox
+              size="small"
+              ?checked=${this.ignoreCrossLaneEdges}
+              @sl-change=${(e: Event) => {
+                const target = e.target as HTMLInputElement | null;
+                this.ignoreCrossLaneEdges = Boolean(target?.checked);
+                this.#persistSettings();
+              }}
+              >ignoreCrossLaneEdges</sl-checkbox
+            >
+          </div>
+
+          <div class="control">
+            <sl-checkbox
+              size="small"
+              ?checked=${this.optimizeRanksByCrossings}
+              @sl-change=${(e: Event) => {
+                const target = e.target as HTMLInputElement | null;
+                this.optimizeRanksByCrossings = Boolean(target?.checked);
+                this.#persistSettings();
+              }}
+              >optimizeRanksByCrossings</sl-checkbox
             >
           </div>
         </div>

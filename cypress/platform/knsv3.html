@@ -368,11 +368,7 @@ flowchart TB
           K
         end
     </pre>
-    <pre class="mermaid">
----
-config:
-  layout: swimlanes
----
+    <pre class="mermaid2">
 flowchart LR
 
   subgraph L1[Community / Users]
@@ -411,6 +407,36 @@ flowchart LR
 
   R1 --> R2 --> G3
 
+    </pre>
+    <pre class="mermaid">
+flowchart LR
+
+
+  subgraph S["Sales"]
+    T5["Confirm with customer"]
+  end
+
+  subgraph T["Technical support"]
+    T4["Get more details from customer"]
+    T6["Resolve solution"]
+  end
+
+  subgraph Tester["Tester"]
+    Te2{"Reproduced the issue"}
+    D4{"Resolved?"}
+  end
+
+  subgraph D["Development"]
+    D1["Error report"]
+    D2["Technical analysis"]
+    D3["Fix the issue"]
+
+  end
+  %% Edges
+  Te2 -- Yes --> D1 --> D2 --> D3 --> D4
+  Te2 -- No --> T4
+  D4 -- No --> D2
+  D4 -- Yes --> T6 --> T5
     </pre>
 
     <script type="module">
@@ -453,7 +479,7 @@ flowchart LR
       await mermaid.initialize({
         theme: 'redux',
         look: 'neo',
-        layout: 'domus',
+        layout: 'swimlanes',
         flowchart: {
           titleTopMargin: 10,
           ignoreCrossLaneEdges: true,
