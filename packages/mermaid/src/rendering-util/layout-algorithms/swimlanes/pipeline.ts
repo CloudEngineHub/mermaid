@@ -69,6 +69,7 @@ export function sugiyamaLayout(g: Graph, opts?: LayoutOptions): LayoutResult {
         ? assignLayers_LaneAwareCompact(gAcyclic, {
             compactSingleInput: opts?.compactSingleInput ?? LAYERING.DEFAULT_COMPACT_SINGLE_INPUT,
             ignoreCrossLaneEdges: true,
+            direction: opts?.direction,
           })
         : assignLayers_Gravity(gAcyclic, {
             compactSingleInput: opts?.compactSingleInput ?? LAYERING.DEFAULT_COMPACT_SINGLE_INPUT,

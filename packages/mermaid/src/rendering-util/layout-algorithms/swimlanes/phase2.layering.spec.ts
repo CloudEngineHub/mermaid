@@ -14,6 +14,45 @@ function edge(id: string, start: string, end: string): MermaidEdge {
 }
 
 describe('Lane-aware compact layering', () => {
+  it('keeps sibling cross-lane branches before downstream branches in the same lane', () => {
+    const lanes = ['S', 'T', 'Tester', 'D'].map(group);
+    const nodes: MermaidNode[] = [
+      ...lanes,
+      node('T5', 'S'),
+      node('T4', 'T'),
+      node('T6', 'T'),
+      node('Te2', 'Tester'),
+      node('D4', 'Tester'),
+      node('D1', 'D'),
+      node('D2', 'D'),
+      node('D3', 'D'),
+      { ...node('label-Te2-D1', 'D'), isEdgeLabel: true, isDummy: true } as MermaidNode,
+      { ...node('label-Te2-T4', 'T'), isEdgeLabel: true, isDummy: true } as MermaidNode,
+      { ...node('label-D4-T6', 'T'), isEdgeLabel: true, isDummy: true } as MermaidNode,
+    ];
+    const edges: MermaidEdge[] = [
+      edge('e1', 'Te2', 'label-Te2-D1'),
+      edge('e2', 'label-Te2-D1', 'D1'),
+      edge('e3', 'D1', 'D2'),
+      edge('e4', 'D2', 'D3'),
+      edge('e5', 'D3', 'D4'),
+      edge('e6', 'Te2', 'label-Te2-T4'),
+      edge('e7', 'label-Te2-T4', 'T4'),
+      edge('e8', 'D4', 'label-D4-T6'),
+      edge('e9', 'label-D4-T6', 'T6'),
+      edge('e10', 'T6', 'T5'),
+    ];
+    const layout: LayoutData = { nodes, edges, config: {} as any };
+    const g = toGraphView(layout);
+    const layering = assignLayers_LaneAwareCompact(g, {
+      ignoreCrossLaneEdges: true,
+      direction: 'LR',
+    });
+
+    expect(layering.rankOf['label-Te2-T4']).toBeLessThan(layering.rankOf['label-D4-T6']);
+    expect(layering.rankOf.T4).toBeLessThan(layering.rankOf.T6);
+  });
+
   it('assigns expected layers for the provided swimlanes diagram', () => {
     // Lanes (top-level groups)
     const Car = group('Car');

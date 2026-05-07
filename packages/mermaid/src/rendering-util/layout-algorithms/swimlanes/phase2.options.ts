@@ -12,6 +12,8 @@ export interface LayeringOptions {
   ignoreCrossLaneEdges?: boolean;
   /** If true, try to lift nodes to reduce crossings between layers. */
   optimizeRanksByCrossings?: boolean;
+  /** Diagram direction, used by lane-aware rank heuristics with direction-specific failure modes. */
+  direction?: 'TB' | 'LR' | 'BT' | 'RL';
 }
 
 /**

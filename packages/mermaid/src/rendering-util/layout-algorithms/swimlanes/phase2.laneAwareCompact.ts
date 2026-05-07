@@ -1,14 +1,55 @@
 import type { Graph, Layering, NodeId } from './helpers.js';
-import { incoming, topoSortIfAcyclic, normalizeGraph } from './phase0.helpers.js';
+import { incoming, normalizeGraph, topoSortIfAcyclic } from './phase0.helpers.js';
 import type { LayeringOptions } from './phase2.options.js';
 import { buildTopLaneMap } from './phase2.options.js';
 
-// cspell:ignore preds
+// cspell:ignore indeg preds topo
+
+function topoSortByGenerationIfAcyclic(g: Graph): NodeId[] | null {
+  const indeg = new Map<NodeId, number>();
+  const adj = new Map<NodeId, NodeId[]>();
+  for (const v of g.nodes) {
+    indeg.set(v, 0);
+    adj.set(v, []);
+  }
+  for (const e of g.edges) {
+    indeg.set(e.dst, (indeg.get(e.dst) ?? 0) + 1);
+    adj.get(e.src)?.push(e.dst);
+  }
+  for (const successors of adj.values()) {
+    successors.sort((a, b) => a.localeCompare(b));
+  }
+
+  let frontier = [...indeg.entries()]
+    .filter(([, degree]) => degree === 0)
+    .map(([id]) => id)
+    .sort((a, b) => a.localeCompare(b));
+  const order: NodeId[] = [];
+
+  while (frontier.length > 0) {
+    const nextFrontier: NodeId[] = [];
+    for (const u of frontier) {
+      order.push(u);
+      for (const v of adj.get(u) ?? []) {
+        indeg.set(v, (indeg.get(v) ?? 0) - 1);
+        if ((indeg.get(v) ?? 0) === 0) {
+          nextFrontier.push(v);
+        }
+      }
+    }
+    frontier = nextFrontier.sort((a, b) => a.localeCompare(b));
+  }
+
+  return order.length === g.nodes.length ? order : null;
+}
 
 // Lane-aware compact layering: one node per (layer, lane); inter-lane edges can stay on same layer
 export function assignLayers_LaneAwareCompact(gAcyclic: Graph, opts?: LayeringOptions): Layering {
   const g = normalizeGraph(gAcyclic);
-  const order = topoSortIfAcyclic(g) ?? [...g.nodes].sort();
+  const order =
+    opts?.direction === 'LR'
+      ? (topoSortByGenerationIfAcyclic(g) ?? [...g.nodes].sort())
+      : (topoSortIfAcyclic(g) ?? [...g.nodes].sort());
 
   // Determine a lane id for each node: top-level parent id, or fall back to node id if none
   const topLaneMap = buildTopLaneMap(g);
