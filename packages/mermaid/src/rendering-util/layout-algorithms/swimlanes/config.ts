@@ -89,11 +89,3 @@ export const CYCLE_REMOVAL = {
   /** Default heuristic for cycle removal */
   DEFAULT_HEURISTIC: 'dfs' as const,
 } as const;
-
-/**
- * A* pathfinding constants
- */
-export const PATHFINDING = {
-  /** Penalty for direction changes (bends) in orthogonal routing */
-  BEND_PENALTY_FACTOR: 0.25,
-} as const;
