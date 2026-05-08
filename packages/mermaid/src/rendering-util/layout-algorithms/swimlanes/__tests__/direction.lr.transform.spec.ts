@@ -57,7 +57,7 @@ function mkGraphWithLanesAndNodes(): { g: Graph; ordered: OrderedLayers; coords:
 }
 
 describe('applySwimlaneDirectionTransform', () => {
-  it('leaves layout unchanged for non-LR directions', () => {
+  it('leaves layout unchanged for TB direction', () => {
     const layout = makeTestLayout();
     const snapshot = layout.nodes.map((n) => ({ id: n.id, x: n.x, y: n.y }));
 
@@ -88,6 +88,35 @@ describe('applySwimlaneDirectionTransform', () => {
     // C started in a different lane (different x) on the same layer as A.
     // After transform, it should share the same x as A (same horizontal progression)
     // but be on a different y (different horizontal lane).
+    expect(C.x).toBe(A.x);
+    expect(C.y).not.toBe(A.y);
+  });
+
+  it('maps vertical layering to reverse vertical progression for BT', () => {
+    const layout = makeTestLayout();
+
+    applySwimlaneDirectionTransform(layout, 'BT');
+
+    const A = layout.nodes.find((n) => n.id === 'A')!;
+    const B = layout.nodes.find((n) => n.id === 'B')!;
+    const C = layout.nodes.find((n) => n.id === 'C')!;
+
+    expect(B.y!).toBeLessThan(A.y!);
+    expect(A.x).toBe(B.x);
+    expect(C.y).toBe(A.y);
+  });
+
+  it('maps vertical layering to reverse horizontal progression for RL', () => {
+    const layout = makeTestLayout();
+
+    applySwimlaneDirectionTransform(layout, 'RL');
+
+    const A = layout.nodes.find((n) => n.id === 'A')!;
+    const B = layout.nodes.find((n) => n.id === 'B')!;
+    const C = layout.nodes.find((n) => n.id === 'C')!;
+
+    expect(A.y).toBe(B.y);
+    expect(B.x!).toBeLessThan(A.x!);
     expect(C.x).toBe(A.x);
     expect(C.y).not.toBe(A.y);
   });
@@ -159,5 +188,37 @@ describe('applySwimlaneDirectionTransform', () => {
         expect(childBottom).toBeLessThanOrEqual(laneBottom + 1e-6);
       }
     }
+  });
+
+  it('keeps nested groups as child clusters inside top-level LR lanes', () => {
+    const layout: LayoutData = {
+      nodes: [
+        { id: 'lane1', isGroup: true, padding: 20 } as any,
+        { id: 'lane2', isGroup: true, padding: 20 } as any,
+        { id: 'nested', isGroup: true, parentId: 'lane1', padding: 12, shape: 'rect' } as any,
+        { id: 'A', isGroup: false, parentId: 'nested', x: 0, y: 0, width: 80, height: 40 } as any,
+        { id: 'B', isGroup: false, parentId: 'lane2', x: 120, y: 0, width: 80, height: 40 } as any,
+      ],
+      edges: [],
+      config: {} as any,
+    };
+
+    applySwimlaneDirectionTransform(layout, 'LR');
+
+    const lane1 = layout.nodes.find((n) => n.id === 'lane1') as any;
+    const lane2 = layout.nodes.find((n) => n.id === 'lane2') as any;
+    const nested = layout.nodes.find((n) => n.id === 'nested') as any;
+    const child = layout.nodes.find((n) => n.id === 'A') as any;
+
+    expect(nested.parentId).toBe('lane1');
+    expect(nested.shape).toBe('rect');
+    expect(nested.x).toBeCloseTo(child.x, 6);
+    expect(nested.width).toBeLessThan(lane1.width);
+    expect(lane1.x).toBeCloseTo(lane2.x, 6);
+
+    const nestedLeft = nested.x - nested.width / 2;
+    const nestedRight = nested.x + nested.width / 2;
+    expect(child.x - child.width / 2).toBeGreaterThanOrEqual(nestedLeft - 1e-6);
+    expect(child.x + child.width / 2).toBeLessThanOrEqual(nestedRight + 1e-6);
   });
 });

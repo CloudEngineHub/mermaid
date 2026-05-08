@@ -1,5 +1,10 @@
 import { log } from '../../../logger.js';
-import type { LayoutData, Node as MermaidNode, Edge as MermaidEdge } from '../../types.js';
+import type {
+  LayoutData,
+  Node as MermaidNode,
+  Edge as MermaidEdge,
+  ClusterNode,
+} from '../../types.js';
 
 // Core aliases used by the Sugiyama pipeline
 export type Layout = LayoutData;
@@ -46,6 +51,8 @@ export interface Coordinates {
 // Alias used in algorithm signatures
 export type Edge = EdgeRef;
 
+export const DEFAULT_SWIMLANE_ID = '__swimlane_default__';
+
 export interface WriteBackOptions {
   layerGap?: number;
   nodeGap?: number;
@@ -58,14 +65,42 @@ export interface WriteBackOptions {
  */
 export function prepareLayoutForSwimlanes(layout: LayoutData): void {
   const direction = (layout as any).direction;
+  const nodes = (layout.nodes ??= []);
   for (const node of layout.nodes ?? []) {
-    if (node.isGroup) {
+    if (node.isGroup && !node.parentId) {
       node.shape = 'swimlane';
       // Propagate direction to lane nodes so the cluster shape can render appropriately
       if (direction) {
         (node as any).direction = direction;
       }
     }
+  }
+
+  const looseNodes = nodes.filter((node) => !node.isGroup && !node.parentId);
+  if (looseNodes.length === 0) {
+    return;
+  }
+
+  let defaultLane = nodes.find((node) => node.id === DEFAULT_SWIMLANE_ID);
+  if (!defaultLane) {
+    defaultLane = {
+      id: DEFAULT_SWIMLANE_ID,
+      label: '',
+      isGroup: true,
+      shape: 'swimlane',
+      padding: 20,
+      ...(direction ? { direction } : {}),
+    } as ClusterNode;
+    nodes.push(defaultLane);
+  } else if (defaultLane.isGroup) {
+    defaultLane.shape = 'swimlane';
+    if (direction) {
+      (defaultLane as any).direction = direction;
+    }
+  }
+
+  for (const node of looseNodes) {
+    node.parentId = DEFAULT_SWIMLANE_ID;
   }
 }
 

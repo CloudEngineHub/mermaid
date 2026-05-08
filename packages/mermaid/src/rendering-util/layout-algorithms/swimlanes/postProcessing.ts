@@ -6,7 +6,7 @@ import {
   prepareEdgeEndpointsForRenderer,
 } from './direction/endpointClip.js';
 import { orthogonalizePolyline, simplifyPolyline } from './direction/geometry.js';
-import { applyLrDirectionTransform } from './direction/lrTransform.js';
+import { applyBtDirectionTransform, applyLrDirectionTransform } from './direction/lrTransform.js';
 import { portSwapToLShape } from './direction/portSwap.js';
 import { nudgeInteriorVerticalsFromObstacles } from './direction/obstacleNudging.js';
 import { straightenStalePortOffsets } from './direction/stalePortOffsets.js';
@@ -59,10 +59,19 @@ export function postProcessSwimlaneLayout(layout: LayoutData, direction?: string
   const edges = layout.edges ?? [];
   const contentNodes = nodes.filter((n) => !n.isGroup);
 
-  // ---------- (1) LR coordinate rotation ----------
-  // Only rotates node positions and edge polylines for LR fixtures;
-  // TB and friends fall through to the cleanup passes below unchanged.
-  if (direction === 'LR' && contentNodes.length > 0 && !applyLrDirectionTransform(layout)) {
+  // ---------- (1) Direction coordinate transform ----------
+  // TB is the canonical orientation. LR/RL rotate rank progression onto X;
+  // BT mirrors the canonical Y progression. Cleanup passes below operate in
+  // whichever coordinate system this step leaves behind.
+  if (
+    (direction === 'LR' || direction === 'RL') &&
+    contentNodes.length > 0 &&
+    !applyLrDirectionTransform(layout, direction)
+  ) {
+    return;
+  }
+
+  if (direction === 'BT' && contentNodes.length > 0 && !applyBtDirectionTransform(layout)) {
     return;
   }
 
