@@ -624,6 +624,15 @@ class RailroadRenderer {
   }
 }
 
+const configureRailroadSvgSize = (
+  svg: SVG,
+  dimensions: { width: number; height: number },
+  useMaxWidth: boolean
+): void => {
+  configureSvgSize(svg, dimensions.height, dimensions.width, useMaxWidth);
+  svg.attr('viewBox', `0 0 ${dimensions.width} ${dimensions.height}`);
+};
+
 /**
  * Main draw function
  */
@@ -641,14 +650,14 @@ const draw: DrawDefinition = (text, id, _version) => {
 
     if (rules.length === 0) {
       log.warn('[Railroad] No rules to render');
-      configureSvgSize(svg, 100, 200, useMaxWidth);
+      configureRailroadSvgSize(svg, { height: 100, width: 200 }, useMaxWidth);
       return;
     }
 
     const renderer = new RailroadRenderer(svg, buildRailroadStyleOptions());
     const dimensions = renderer.renderDiagram(rules);
 
-    configureSvgSize(svg, dimensions.height, dimensions.width, useMaxWidth);
+    configureRailroadSvgSize(svg, dimensions, useMaxWidth);
 
     log.debug('[Railroad] Render complete');
   } catch (error) {
