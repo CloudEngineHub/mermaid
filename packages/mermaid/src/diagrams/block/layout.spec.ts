@@ -26,8 +26,8 @@ describe('layout runtime config', () => {
       type: 'square',
       columns: 2,
       children: [
-        { id: 'b1', type: 'rect', children: [], size: { width: 100, height: 50, x: 0, y: 0 } },
-        { id: 'b2', type: 'rect', children: [], size: { width: 100, height: 50, x: 0, y: 0 } },
+        { id: 'b1', type: 'square', children: [], size: { width: 100, height: 50, x: 0, y: 0 } },
+        { id: 'b2', type: 'square', children: [], size: { width: 100, height: 50, x: 0, y: 0 } },
       ],
     });
 
