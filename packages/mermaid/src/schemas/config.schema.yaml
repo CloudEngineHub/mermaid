@@ -1105,6 +1105,18 @@ $defs: # JSON Schema definition (maybe we should move these to a separate file)
         description: |
           Axial position of slice's label from zero at the center to 1 at the outside edges.
         default: 0.75
+      innerHole:
+        type: number
+        minimum: 0
+        maximum: 1
+        description: |
+          Donut hole ratio, from 0 for no hole to 1 for only outline.
+        default: 0
+      disableLegend:
+        type: boolean
+        description: |
+          Parameter to toggle legend. Show legend if set to false, put label inside chart if set to true.
+        default: false
 
   QuadrantChartConfig:
     title: Quadrant Chart Config

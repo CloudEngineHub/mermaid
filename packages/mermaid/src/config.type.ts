@@ -914,6 +914,16 @@ export interface PieDiagramConfig extends BaseDiagramConfig {
    *
    */
   textPosition?: number;
+  /**
+   * Donut hole ratio, from 0 for no hole to 1 for only outline.
+   *
+   */
+  innerHole?: number;
+  /**
+   * Parameter to toggle legend. Show legend if set to false, put label inside chart if set to true.
+   *
+   */
+  disableLegend?: boolean;
 }
 /**
  * This interface was referenced by `MermaidConfig`'s JSON-Schema

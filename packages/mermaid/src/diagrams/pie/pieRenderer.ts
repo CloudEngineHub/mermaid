@@ -48,11 +48,13 @@ export const draw: DrawDefinition = (text, id, _version, diagObj) => {
   let [outerStrokeWidth] = parseFontSize(themeVariables.pieOuterStrokeWidth);
   outerStrokeWidth ??= 2;
 
+  const disableLegend: boolean = pieConfig.disableLegend === true;
   const textPosition: number = pieConfig.textPosition;
+  const innerHole: number = pieConfig.innerHole;
   const radius: number = Math.min(pieWidth, height) / 2 - MARGIN;
   // Shape helper to build arcs:
   const arcGenerator: d3.Arc<unknown, d3.PieArcDatum<D3Section>> = arc<d3.PieArcDatum<D3Section>>()
-    .innerRadius(0)
+    .innerRadius(innerHole * radius)
     .outerRadius(radius);
   const labelArcGenerator: d3.Arc<unknown, d3.PieArcDatum<D3Section>> = arc<
     d3.PieArcDatum<D3Section>
@@ -117,7 +119,9 @@ export const draw: DrawDefinition = (text, id, _version, diagObj) => {
     .enter()
     .append('text')
     .text((datum: d3.PieArcDatum<D3Section>): string => {
-      return ((datum.data.value / sum) * 100).toFixed(0) + '%';
+      const label: string = datum.data.label;
+      const percentage: string = ((datum.data.value / sum) * 100).toFixed(0) + '%';
+      return disableLegend ? label + ' (' + percentage + ')' : percentage;
     })
     .attr('transform', (datum: d3.PieArcDatum<D3Section>): string => {
       // eslint-disable-next-line @typescript-eslint/restrict-plus-operands
@@ -139,47 +143,51 @@ export const draw: DrawDefinition = (text, id, _version, diagObj) => {
     value,
   }));
 
-  const legend = group
-    .selectAll('.legend')
-    .data(allSectionData)
-    .enter()
-    .append('g')
-    .attr('class', 'legend')
-    .attr('transform', (_datum, index: number): string => {
-      const height = LEGEND_RECT_SIZE + LEGEND_SPACING;
-      const offset = (height * allSectionData.length) / 2;
-      const horizontal = 12 * LEGEND_RECT_SIZE;
-      const vertical = index * height - offset;
-      return 'translate(' + horizontal + ',' + vertical + ')';
-    });
+  let chartAndLegendWidth: number = pieWidth + MARGIN;
 
-  legend
-    .append('rect')
-    .attr('width', LEGEND_RECT_SIZE)
-    .attr('height', LEGEND_RECT_SIZE)
-    .style('fill', (d) => color(d.label))
-    .style('stroke', (d) => color(d.label));
+  if (!disableLegend) {
+    // Draw legend
+    const legend = group
+      .selectAll('.legend')
+      .data(allSectionData)
+      .enter()
+      .append('g')
+      .attr('class', 'legend')
+      .attr('transform', (_datum, index: number): string => {
+        const height = LEGEND_RECT_SIZE + LEGEND_SPACING;
+        const offset = (height * allSectionData.length) / 2;
+        const horizontal = 12 * LEGEND_RECT_SIZE;
+        const vertical = index * height - offset;
+        return 'translate(' + horizontal + ',' + vertical + ')';
+      });
 
-  legend
-    .append('text')
-    .attr('x', LEGEND_RECT_SIZE + LEGEND_SPACING)
-    .attr('y', LEGEND_RECT_SIZE - LEGEND_SPACING)
-    .text((d) => {
-      if (db.getShowData()) {
-        return `${d.label} [${d.value}]`;
-      }
-      return d.label;
-    });
+    legend
+      .append('rect')
+      .attr('width', LEGEND_RECT_SIZE)
+      .attr('height', LEGEND_RECT_SIZE)
+      .style('fill', (d) => color(d.label))
+      .style('stroke', (d) => color(d.label));
 
-  const longestTextWidth = Math.max(
-    ...legend
-      .selectAll('text')
-      .nodes()
-      .map((node) => (node as Element)?.getBoundingClientRect().width ?? 0)
-  );
+    legend
+      .append('text')
+      .attr('x', LEGEND_RECT_SIZE + LEGEND_SPACING)
+      .attr('y', LEGEND_RECT_SIZE - LEGEND_SPACING)
+      .text((d) => {
+        if (db.getShowData()) {
+          return `${d.label} [${d.value}]`;
+        }
+        return d.label;
+      });
 
-  const chartAndLegendWidth =
-    pieWidth + MARGIN + LEGEND_RECT_SIZE + LEGEND_SPACING + longestTextWidth;
+    const longestTextWidth: number = Math.max(
+      ...legend
+        .selectAll('text')
+        .nodes()
+        .map((node) => (node as Element)?.getBoundingClientRect().width ?? 0)
+    );
+
+    chartAndLegendWidth += LEGEND_RECT_SIZE + LEGEND_SPACING + longestTextWidth;
+  }
 
   // Measure title width to ensure it's not clipped
   const titleWidth = (titleText.node() as Element)?.getBoundingClientRect().width ?? 0;
