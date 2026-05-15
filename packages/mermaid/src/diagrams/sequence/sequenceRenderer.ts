@@ -1179,9 +1179,18 @@ export const draw = async function (_text: string, id: string, _version: string,
         bounds.models.addLoop(loopModel);
         break;
       case diagObj.db.LINETYPE.RECT_START:
-        adjustLoopHeightForWrap(loopWidths, msg, conf.boxMargin, conf.boxMargin, (message) =>
-          bounds.newLoop(undefined, message.message)
-        );
+        adjustLoopHeightForWrap(loopWidths, msg, conf.boxMargin, conf.boxMargin, (message) => {
+          let fill = message.message;
+          if (!fill) {
+            // Apply a theme-aware default fill.
+            // Because the rect is rendered behind actors and text, it does not obscure them.
+            fill =
+              conf.themeVariables?.rectBkgColor ||
+              conf.themeVariables?.actorBkg ||
+              'rgba(128, 128, 128, 0.5)';
+          }
+          bounds.newLoop(undefined, fill);
+        });
         break;
       case diagObj.db.LINETYPE.RECT_END:
         loopModel = bounds.endLoop();
