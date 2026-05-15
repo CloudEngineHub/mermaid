@@ -1040,7 +1040,7 @@ function adjustCreatedDestroyedData(
  * @param diagObj - A standard diagram containing the db and the text and type etc of the diagram
  */
 export const draw = async function (_text: string, id: string, _version: string, diagObj: Diagram) {
-  const { securityLevel, sequence, look } = getConfig();
+  const { securityLevel, sequence, look, themeVariables } = getConfig();
   conf = sequence;
   // Handle root and Document for when rendering in sandbox mode
   let sandboxElement;
@@ -1184,9 +1184,11 @@ export const draw = async function (_text: string, id: string, _version: string,
           if (!fill) {
             // Apply a theme-aware default fill.
             // Because the rect is rendered behind actors and text, it does not obscure them.
+            // Use theme background when no explicit color is given; the rect renders
+            // behind all content so any semi-transparent theme color is safe.
             fill =
-              conf.themeVariables?.rectBkgColor ||
-              conf.themeVariables?.actorBkg ||
+              themeVariables?.rectBkgColor ||
+              themeVariables?.actorBkg ||
               'rgba(128, 128, 128, 0.5)';
           }
           bounds.newLoop(undefined, fill);
