@@ -920,7 +920,7 @@ export interface PieDiagramConfig extends BaseDiagramConfig {
    */
   donutHole?: number;
   /**
-   * Legend's position relative to the chart. Set to 'none' to write label on slice. Default to right.
+   * Legend's position relative to the chart. Default to right.
    *
    */
   legendPosition?: string;

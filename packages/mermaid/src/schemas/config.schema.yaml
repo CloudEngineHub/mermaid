@@ -1128,7 +1128,7 @@ $defs: # JSON Schema definition (maybe we should move these to a separate file)
       legendPosition:
         type: string
         description: |
-          Legend's position relative to the chart. Set to 'none' to write label on slice. Default to right.
+          Legend's position relative to the chart. Default to right.
         default: 'right'
       highlightSlice:
         type: string

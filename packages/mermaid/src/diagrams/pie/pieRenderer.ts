@@ -49,7 +49,6 @@ export const draw: DrawDefinition = (text, id, _version, diagObj) => {
   outerStrokeWidth ??= 2;
 
   const legendPosition = pieConfig.legendPosition;
-  const noLegend: boolean = legendPosition === 'none';
 
   const textPosition: number = pieConfig.textPosition;
   const innerHole: number = pieConfig.donutHole;
@@ -131,15 +130,7 @@ export const draw: DrawDefinition = (text, id, _version, diagObj) => {
     .enter()
     .append('text')
     .text((datum: d3.PieArcDatum<D3Section>): string => {
-      let label: string = datum.data.label;
-      if (db.getShowData()) {
-        label = `${datum.data.label} [${datum.data.value}]`;
-      }
-      const percentage: string = ((datum.data.value / sum) * 100).toFixed(0) + '%';
-      if (noLegend) {
-        return `${label} - ${percentage}`;
-      }
-      return percentage;
+      return ((datum.data.value / sum) * 100).toFixed(0) + '%';
     })
     .attr('transform', (datum: d3.PieArcDatum<D3Section>): string => {
       // eslint-disable-next-line @typescript-eslint/restrict-plus-operands
@@ -161,102 +152,100 @@ export const draw: DrawDefinition = (text, id, _version, diagObj) => {
     value,
   }));
 
+  // Draw legend
+  const legend = group
+    .selectAll('.legend')
+    .data(allSectionData)
+    .enter()
+    .append('g')
+    .attr('class', 'legend');
+
+  legend
+    .append('rect')
+    .attr('width', LEGEND_RECT_SIZE)
+    .attr('height', LEGEND_RECT_SIZE)
+    .style('fill', (d) => color(d.label))
+    .style('stroke', (d) => color(d.label));
+
+  legend
+    .append('text')
+    .attr('x', LEGEND_RECT_SIZE + LEGEND_SPACING)
+    .attr('y', LEGEND_RECT_SIZE - LEGEND_SPACING)
+    .text((d) => {
+      if (db.getShowData()) {
+        return `${d.label} [${d.value}]`;
+      }
+      return d.label;
+    });
+
+  const longestTextWidth: number = Math.max(
+    ...legend
+      .selectAll('text')
+      .nodes()
+      .map((node) => (node as Element)?.getBoundingClientRect().width ?? 0)
+  );
+
   let chartAndLegendHeight: number = pieWidth + MARGIN;
   let chartAndLegendWidth: number = pieWidth + MARGIN;
 
-  if (!noLegend) {
-    // Draw legend
-    const legend = group
-      .selectAll('.legend')
-      .data(allSectionData)
-      .enter()
-      .append('g')
-      .attr('class', 'legend');
+  const legendHeight: number = LEGEND_RECT_SIZE + LEGEND_SPACING;
+  const totalLegendHeight: number = allSectionData.length * legendHeight;
 
-    legend
-      .append('rect')
-      .attr('width', LEGEND_RECT_SIZE)
-      .attr('height', LEGEND_RECT_SIZE)
-      .style('fill', (d) => color(d.label))
-      .style('stroke', (d) => color(d.label));
-
-    legend
-      .append('text')
-      .attr('x', LEGEND_RECT_SIZE + LEGEND_SPACING)
-      .attr('y', LEGEND_RECT_SIZE - LEGEND_SPACING)
-      .text((d) => {
-        if (db.getShowData()) {
-          return `${d.label} [${d.value}]`;
-        }
-        return d.label;
+  switch (legendPosition) {
+    case 'center':
+      legend.attr('transform', (_datum, index: number): string => {
+        const offset: number = (legendHeight * allSectionData.length) / 2;
+        const horizontal: number = -longestTextWidth / 2 - LEGEND_RECT_SIZE + LEGEND_SPACING;
+        const vertical: number = index * legendHeight - offset;
+        return 'translate(' + horizontal + ',' + vertical + ')';
       });
+      break;
+    case 'top':
+      chartAndLegendHeight += totalLegendHeight;
 
-    const longestTextWidth: number = Math.max(
-      ...legend
-        .selectAll('text')
-        .nodes()
-        .map((node) => (node as Element)?.getBoundingClientRect().width ?? 0)
-    );
+      legend.attr('transform', (_datum, index: number): string => {
+        const offset: number = radius;
+        const horizontal: number = -longestTextWidth / 2;
+        const vertical: number = index * legendHeight - offset;
+        return `translate(${horizontal}, ${vertical})`;
+      });
+      pie.attr('transform', (): string => {
+        return `translate(0, ${totalLegendHeight + legendHeight})`;
+      });
+      break;
+    case 'bottom':
+      chartAndLegendHeight += totalLegendHeight;
 
-    const legendHeight = LEGEND_RECT_SIZE + LEGEND_SPACING;
-    const totalLegendHeight = allSectionData.length * legendHeight;
+      legend.attr('transform', (_datum, index: number): string => {
+        const offset: number = -radius - legendHeight;
+        const horizontal: number = -longestTextWidth / 2;
+        const vertical: number = index * legendHeight - offset;
+        return 'translate(' + horizontal + ',' + vertical + ')';
+      });
+      break;
+    case 'left':
+      chartAndLegendWidth += LEGEND_RECT_SIZE + LEGEND_SPACING + longestTextWidth;
 
-    switch (legendPosition) {
-      case 'center':
-        legend.attr('transform', (_datum, index: number): string => {
-          const offset: number = (legendHeight * allSectionData.length) / 2;
-          const horizontal: number = -longestTextWidth / 2;
-          const vertical: number = index * legendHeight - offset;
-          return 'translate(' + horizontal + ',' + vertical + ')';
-        });
-        break;
-      case 'top':
-        chartAndLegendHeight += totalLegendHeight;
+      legend.attr('transform', (_datum, index: number): string => {
+        const offset: number = (legendHeight * allSectionData.length) / 2;
+        const horizontal: number = -radius - (LEGEND_RECT_SIZE + LEGEND_SPACING);
+        const vertical: number = index * legendHeight - offset;
+        return 'translate(' + horizontal + ',' + vertical + ')';
+      });
+      pie.attr('transform', (): string => {
+        return `translate(${longestTextWidth + LEGEND_RECT_SIZE + LEGEND_SPACING}, 0)`;
+      });
+      break;
+    default:
+      chartAndLegendWidth += LEGEND_RECT_SIZE + LEGEND_SPACING + longestTextWidth;
 
-        legend.attr('transform', (_datum, index: number): string => {
-          const offset: number = radius;
-          const horizontal: number = -longestTextWidth / 2;
-          const vertical: number = index * legendHeight - offset;
-          return `translate(${horizontal}, ${vertical})`;
-        });
-        pie.attr('transform', (): string => {
-          return `translate(0, ${totalLegendHeight + legendHeight})`;
-        });
-        break;
-      case 'bottom':
-        chartAndLegendHeight += totalLegendHeight;
-
-        legend.attr('transform', (_datum, index: number): string => {
-          const offset: number = -radius - legendHeight;
-          const horizontal: number = -longestTextWidth / 2;
-          const vertical: number = index * legendHeight - offset;
-          return 'translate(' + horizontal + ',' + vertical + ')';
-        });
-        break;
-      case 'left':
-        chartAndLegendWidth += longestTextWidth;
-
-        legend.attr('transform', (_datum, index: number): string => {
-          const offset: number = (legendHeight * allSectionData.length) / 2;
-          const horizontal: number = -radius - legendHeight;
-          const vertical: number = index * legendHeight - offset;
-          return 'translate(' + horizontal + ',' + vertical + ')';
-        });
-        pie.attr('transform', (): string => {
-          return `translate(${longestTextWidth + legendHeight}, 0)`;
-        });
-        break;
-      default:
-        chartAndLegendWidth += longestTextWidth;
-
-        legend.attr('transform', (_datum, index: number): string => {
-          const offset: number = (legendHeight * allSectionData.length) / 2;
-          const horizontal: number = radius + legendHeight;
-          const vertical: number = index * legendHeight - offset;
-          return 'translate(' + horizontal + ',' + vertical + ')';
-        });
-        break;
-    }
+      legend.attr('transform', (_datum, index: number): string => {
+        const offset: number = (legendHeight * allSectionData.length) / 2;
+        const horizontal: number = radius + LEGEND_RECT_SIZE + LEGEND_SPACING;
+        const vertical: number = index * legendHeight - offset;
+        return 'translate(' + horizontal + ',' + vertical + ')';
+      });
+      break;
   }
 
   // Measure title width to ensure it's not clipped

@@ -127,17 +127,6 @@ describe('pie chart', () => {
     );
   });
 
-  it('should render a pie diagram with no legend', () => {
-    imgSnapshotTest(
-      `pie title Portfolio Holdings
-        "Stock": 60
-        "Bond": 30
-        "Cash": 10
-      `,
-      { pie: { legendPosition: 'none' } }
-    );
-  });
-
   it('should render a pie diagram with legend at the bottom of the diagram', () => {
     imgSnapshotTest(
       `pie title Football Team Member Position
@@ -157,17 +146,17 @@ describe('pie chart', () => {
         "Entertainment": 80
         "Rent": 500
       `,
-      { pie: { highlightSlice: 'Rent' } }
+      { pie: { highlightSlice: 'Food' } }
     );
     cy.get('.pieCircle').first().should('have.class', 'pieCircleHighlighted');
   });
 
   it('should render a pie diagram that highlights hovered slice', () => {
     renderGraph(
-      `pie title Budget Allocation
-        "Food": 300
-        "Entertainment": 80
-        "Rent": 500
+      `pie title Portfolio Holdings
+        "Stock": 60
+        "Bond": 30
+        "Cash": 10
       `,
       { pie: { highlightSlice: 'hover' } }
     );
