@@ -116,9 +116,9 @@ export const draw: DrawDefinition = (text, id, _version, diagObj) => {
     .attr('class', (datum: d3.PieArcDatum<D3Section>) => {
       let className = 'pieCircle';
       if (pieConfig.highlightSlice === 'hover') {
-        className += ' pieCircleHighlightedOnHover';
+        className += ' highlightedOnHover';
       } else if (pieConfig.highlightSlice === datum.data.label) {
-        className += ' pieCircleHighlighted';
+        className += ' highlighted';
       }
       return className;
     });
@@ -237,12 +237,13 @@ export const draw: DrawDefinition = (text, id, _version, diagObj) => {
         return `translate(${longestTextWidth + LEGEND_RECT_SIZE + LEGEND_SPACING}, 0)`;
       });
       break;
+    case 'right':
     default:
       chartAndLegendWidth += LEGEND_RECT_SIZE + LEGEND_SPACING + longestTextWidth;
 
       legend.attr('transform', (_datum, index: number): string => {
         const offset: number = (legendHeight * allSectionData.length) / 2;
-        const horizontal: number = radius + LEGEND_RECT_SIZE + LEGEND_SPACING;
+        const horizontal: number = 12 * LEGEND_RECT_SIZE;
         const vertical: number = index * legendHeight - offset;
         return 'translate(' + horizontal + ',' + vertical + ')';
       });

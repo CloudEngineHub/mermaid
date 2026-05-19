@@ -8,14 +8,14 @@ const getStyles: DiagramStylesProvider = (options: PieStyleOptions) =>
     stroke-width : ${options.pieStrokeWidth};
     opacity : ${options.pieOpacity};
   }
-  .pieCircleHighlighted{
-    scale: 1.05 !important;
-    opacity: 1 !important;
+  .pieCircle.highlighted{
+    scale: 1.05;
+    opacity: 1;
   }
-  .pieCircleHighlightedOnHover:hover{
-    transition-duration: 250ms !important;
-    scale: 1.05 !important;
-    opacity: 1 !important;
+  .pieCircle.highlightedOnHover:hover{
+    transition-duration: 250ms;
+    scale: 1.05;
+    opacity: 1;
   }
   .pieOuterCircle{
     stroke: ${options.pieOuterStrokeColor};

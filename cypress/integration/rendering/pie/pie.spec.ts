@@ -127,7 +127,7 @@ describe('pie chart', () => {
     );
   });
 
-  it('should render a pie diagram if donutHole parameter is invalid', () => {
+  it('should render a pie diagram if donutHole parameter is too large', () => {
     imgSnapshotTest(
       `pie title Items Sold
         "Speaker": 30
@@ -139,7 +139,7 @@ describe('pie chart', () => {
     );
   });
 
-  it('should render a pie diagram if donutHole parameter is invalid', () => {
+  it('should render a pie diagram if donutHole parameter is negative', () => {
     imgSnapshotTest(
       `pie title Owned Pet
         "Dog": 65

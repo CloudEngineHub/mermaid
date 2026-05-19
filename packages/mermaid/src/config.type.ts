@@ -923,7 +923,7 @@ export interface PieDiagramConfig extends BaseDiagramConfig {
    * Legend's position relative to the chart. Default to right.
    *
    */
-  legendPosition?: string;
+  legendPosition?: 'top' | 'bottom' | 'left' | 'right' | 'center';
   /**
    * Highlight specific slice with matching label. Set to 'hover' to highlight hovered slice.
    *
