@@ -390,6 +390,13 @@ function ensurePairwiseSubsets(subsets: VennData[]): VennData[] {
   // Build a set of all existing subset keys (sorted, joined) for fast lookup.
   const existingKeys = new Set(subsets.map((s) => [...s.sets].sort().join('|')));
 
+  // Pre-compute a map of individual set sizes for O(1) lookup
+  const individualSetSizes = new Map(
+    subsets
+      .filter((s) => s.sets.length === 1 && s.size !== undefined)
+      .map((s) => [s.sets[0], s.size])
+  );
+
   const synthetic: VennData[] = [];
 
   for (const subset of subsets) {
@@ -407,8 +414,8 @@ function ensurePairwiseSubsets(subsets: VennData[]): VennData[] {
           // Use a size that visually represents a meaningful pairwise overlap.
           // We default to 1/4 of the smaller of the two individual set sizes,
           // falling back to 2.5 (the default for a 2-set union in the parser).
-          const sizeA = subsets.find((s) => s.sets.length === 1 && s.sets[0] === pair[0])?.size;
-          const sizeB = subsets.find((s) => s.sets.length === 1 && s.sets[0] === pair[1])?.size;
+          const sizeA = individualSetSizes.get(pair[0]);
+          const sizeB = individualSetSizes.get(pair[1]);
           const pairSize =
             sizeA !== undefined && sizeB !== undefined ? Math.min(sizeA, sizeB) / 4 : 2.5;
           synthetic.push({ sets: pair, size: pairSize, label: '' });
