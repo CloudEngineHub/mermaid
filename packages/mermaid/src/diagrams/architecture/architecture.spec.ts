@@ -258,6 +258,19 @@ describe('architecture diagrams', () => {
       expect(db.getServices().map((s) => s.id)).toEqual(['rowspan', 'columnar']);
       expect(db.getLayoutHints()[0].members).toEqual(['rowspan', 'columnar']);
     });
+
+    it.each(['align', 'row', 'column'])(
+      'should reject a service whose id is the exact reserved keyword %s',
+      async (keyword) => {
+        // The directive introduces `align`, `row`, and `column` as reserved
+        // keywords in architecture-beta. An exact-match id (no prefix/suffix)
+        // must be rejected at parse time so authors get a clear error rather
+        // than a downstream layout failure.
+        const str = `architecture-beta
+  service ${keyword}(database)[Service Using Reserved Word]`;
+        await expect(parser.parse(str)).rejects.toThrow();
+      }
+    );
   });
 
   describe('addJunction validation', () => {
