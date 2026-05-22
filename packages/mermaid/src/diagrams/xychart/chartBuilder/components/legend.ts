@@ -3,8 +3,10 @@ import type {
   ChartComponent,
   Dimension,
   DrawableElem,
+  PathElem,
   PlotData,
   Point,
+  RectElem,
   XYChartConfig,
   XYChartData,
   XYChartThemeConfig,
@@ -16,6 +18,22 @@ import { TextDimensionCalculatorWithFont } from '../textDimensionCalculator.js';
 const LEGEND_MARKER_TO_FONT_RATIO = 0.75;
 const LEGEND_ITEM_SPACING_TO_FONT_RATIO = 0.5;
 const LEGEND_MARKER_SPACING_TO_FONT_RATIO = 0.35;
+
+interface LegendLayout {
+  fontSize: number;
+  markerSize: number;
+  markerSpacing: number;
+  itemSpacing: number;
+}
+
+function getLegendLayout(fontSize: number): LegendLayout {
+  return {
+    fontSize,
+    markerSize: fontSize * LEGEND_MARKER_TO_FONT_RATIO,
+    markerSpacing: fontSize * LEGEND_MARKER_SPACING_TO_FONT_RATIO,
+    itemSpacing: fontSize * LEGEND_ITEM_SPACING_TO_FONT_RATIO,
+  };
+}
 
 export class ChartLegend implements ChartComponent {
   private boundingRect = { x: 0, y: 0, width: 0, height: 0 };
@@ -44,10 +62,9 @@ export class ChartLegend implements ChartComponent {
       return { width: 0, height: 0 };
     }
 
-    const fontSize = this.chartConfig.legendFontSize;
-    const markerSize = fontSize * LEGEND_MARKER_TO_FONT_RATIO;
-    const markerSpacing = fontSize * LEGEND_MARKER_SPACING_TO_FONT_RATIO;
-    const itemSpacing = fontSize * LEGEND_ITEM_SPACING_TO_FONT_RATIO;
+    const { fontSize, markerSize, markerSpacing, itemSpacing } = getLegendLayout(
+      this.chartConfig.legendFontSize
+    );
     const textDimension = this.textDimensionCalculator.getMaxDimension(
       this.visiblePlots.map((plot) => plot.title),
       fontSize
@@ -80,50 +97,46 @@ export class ChartLegend implements ChartComponent {
       return [];
     }
 
-    const fontSize = this.chartConfig.legendFontSize;
-    const markerSize = fontSize * LEGEND_MARKER_TO_FONT_RATIO;
-    const markerSpacing = fontSize * LEGEND_MARKER_SPACING_TO_FONT_RATIO;
-    const itemSpacing = fontSize * LEGEND_ITEM_SPACING_TO_FONT_RATIO;
+    const { fontSize, markerSize, markerSpacing, itemSpacing } = getLegendLayout(
+      this.chartConfig.legendFontSize
+    );
     const rowHeight = fontSize + itemSpacing;
     const startX = this.boundingRect.x + this.chartConfig.legendPadding;
     const startY = this.boundingRect.y + this.chartConfig.legendPadding;
+    const barMarkers: RectElem[] = [];
+    const lineMarkers: PathElem[] = [];
+
+    for (const [index, plot] of this.visiblePlots.entries()) {
+      if (isBarPlot(plot)) {
+        barMarkers.push({
+          x: startX,
+          y: startY + index * rowHeight,
+          width: markerSize,
+          height: markerSize,
+          fill: plot.fill,
+          strokeFill: plot.fill,
+          strokeWidth: 0,
+        });
+      } else {
+        const markerY = startY + index * rowHeight + markerSize / 2;
+        lineMarkers.push({
+          path: `M ${startX},${markerY} L ${startX + markerSize},${markerY}`,
+          strokeFill: plot.strokeFill,
+          strokeWidth: plot.strokeWidth,
+        });
+      }
+    }
 
     return [
       {
         groupTexts: ['legend', 'markers'],
         type: 'rect',
-        data: this.visiblePlots.flatMap((plot, index) =>
-          isBarPlot(plot)
-            ? [
-                {
-                  x: startX,
-                  y: startY + index * rowHeight,
-                  width: markerSize,
-                  height: markerSize,
-                  fill: plot.fill,
-                  strokeFill: plot.fill,
-                  strokeWidth: 0,
-                },
-              ]
-            : []
-        ),
+        data: barMarkers,
       },
       {
         groupTexts: ['legend', 'markers'],
         type: 'path',
-        data: this.visiblePlots.flatMap((plot, index) => {
-          if (isBarPlot(plot)) {
-            return [];
-          }
-          const markerY = startY + index * rowHeight + markerSize / 2;
-          return [
-            {
-              path: `M ${startX},${markerY} L ${startX + markerSize},${markerY}`,
-              strokeFill: plot.strokeFill,
-              strokeWidth: plot.strokeWidth,
-            },
-          ];
-        }),
+        data: lineMarkers,
       },
       {
         groupTexts: ['legend', 'label'],

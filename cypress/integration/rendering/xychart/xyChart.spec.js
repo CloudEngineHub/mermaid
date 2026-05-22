@@ -1,4 +1,4 @@
-import { imgSnapshotTest, renderGraph } from '../../../helpers/util.ts';
+import { imgSnapshotTest } from '../../../helpers/util.ts';
 
 describe('XY Chart', () => {
   it('should render the simplest possible xy-beta chart', () => {
@@ -93,7 +93,7 @@ describe('XY Chart', () => {
     );
   });
   it('should render legends for named plots', () => {
-    renderGraph(
+    imgSnapshotTest(
       `
       xychart-beta
         title "An Example Chart"
@@ -101,16 +101,17 @@ describe('XY Chart', () => {
         y-axis "Seconds" 0 --> 198.2
         line "avg" [48.1, 41.5, 45.7, 72.8, 67.7, 59.9]
         line "p50" [38.2, 36.8, 39.7, 54.5, 49.0, 38.4]
-        line "p95" [112.2, 75.3, 103.0, 177.0, 180.2, 109.4]
+        bar "p95" [112.2, 75.3, 103.0, 177.0, 180.2, 109.4]
       `,
-      { screenshot: false }
+      {}
     );
 
     cy.get('g.legend text').should('have.length', 3);
     cy.get('g.legend').should('contain.text', 'avg');
     cy.get('g.legend').should('contain.text', 'p50');
     cy.get('g.legend').should('contain.text', 'p95');
-    cy.get('g.legend path').should('have.length', 3);
+    cy.get('g.legend path').should('have.length', 2);
+    cy.get('g.legend rect').should('have.length', 1);
   });
   it('Decimals and negative numbers are supported', () => {
     imgSnapshotTest(

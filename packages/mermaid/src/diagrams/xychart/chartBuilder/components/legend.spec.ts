@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import defaultConfig from '../../../../defaultConfig.js';
+import themes from '../../../../themes/index.js';
+import type { SVGGroup } from '../../../../diagram-api/types.js';
+import { XYChartBuilder } from '../index.js';
 import { ChartLegend } from './legend.js';
+import { getChartLegendComponent } from './legend.js';
 import type { XYChartConfig, XYChartData, XYChartThemeConfig } from '../interfaces.js';
 import type { TextDimensionCalculator } from '../textDimensionCalculator.js';
 
@@ -10,62 +15,15 @@ const textDimensionCalculator: TextDimensionCalculator = {
   }),
 };
 
-const chartConfig: XYChartConfig = {
-  width: 700,
-  height: 500,
-  titleFontSize: 20,
-  titlePadding: 10,
-  showTitle: true,
+const chartConfig = {
+  ...(defaultConfig.xyChart as XYChartConfig),
   showLegend: true,
-  legendFontSize: 14,
-  legendPadding: 10,
-  showDataLabel: false,
-  showDataLabelOutsideBar: false,
-  chartOrientation: 'vertical',
-  plotReservedSpacePercent: 50,
-  xAxis: {
-    showLabel: true,
-    labelFontSize: 14,
-    labelPadding: 5,
-    showTitle: true,
-    titleFontSize: 16,
-    titlePadding: 5,
-    showTick: true,
-    tickLength: 5,
-    tickWidth: 2,
-    showAxisLine: true,
-    axisLineWidth: 2,
-  },
-  yAxis: {
-    showLabel: true,
-    labelFontSize: 14,
-    labelPadding: 5,
-    showTitle: true,
-    titleFontSize: 16,
-    titlePadding: 5,
-    showTick: true,
-    tickLength: 5,
-    tickWidth: 2,
-    showAxisLine: true,
-    axisLineWidth: 2,
-  },
-};
+} satisfies XYChartConfig;
 
-const chartThemeConfig: XYChartThemeConfig = {
-  backgroundColor: '#fff',
-  titleColor: '#111',
-  dataLabelColor: '#222',
+const chartThemeConfig = {
+  ...(themes.default.getThemeVariables().xyChart as XYChartThemeConfig),
   legendTextColor: '#333',
-  xAxisLabelColor: '#444',
-  xAxisTitleColor: '#555',
-  xAxisTickColor: '#666',
-  xAxisLineColor: '#777',
-  yAxisLabelColor: '#888',
-  yAxisTitleColor: '#999',
-  yAxisTickColor: '#aaa',
-  yAxisLineColor: '#bbb',
-  plotColorPalette: '#f00,#0f0',
-};
+} satisfies XYChartThemeConfig;
 
 const chartData: XYChartData = {
   title: 'Latency',
@@ -209,5 +167,37 @@ describe('ChartLegend', () => {
       height: 0,
     });
     expect(crampedLegend.getDrawableElements()).toEqual([]);
+  });
+
+  it('creates a legend component and integrates with the chart builder', () => {
+    const legend = getChartLegendComponent(
+      chartConfig,
+      chartData,
+      chartThemeConfig,
+      undefined as unknown as SVGGroup
+    );
+
+    expect(legend.calculateSpace({ width: 200, height: 200 })).toEqual({
+      width: 77.4,
+      height: 55,
+    });
+
+    const drawables = XYChartBuilder.build(
+      { ...chartConfig, chartOrientation: 'horizontal' },
+      chartData,
+      chartThemeConfig,
+      undefined as unknown as SVGGroup
+    );
+
+    expect(
+      drawables.find(
+        (drawable) => drawable.type === 'text' && drawable.groupTexts.join('.') === 'legend.label'
+      )?.data
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ text: 'avg', fill: '#333' }),
+        expect.objectContaining({ text: 'p95', fill: '#333' }),
+      ])
+    );
   });
 });

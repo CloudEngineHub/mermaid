@@ -31,6 +31,9 @@ export type SimplePlotDataType = [string, number][];
 
 export interface LinePlotData {
   type: 'line';
+  /**
+   * The title of this plot, or `""` if there is no title.
+   */
   title: string;
   strokeFill: string;
   strokeWidth: number;
@@ -39,6 +42,9 @@ export interface LinePlotData {
 
 export interface BarPlotData {
   type: 'bar';
+  /**
+   * The title of this plot, or `""` if there is no title.
+   */
   title: string;
   fill: string;
   data: SimplePlotDataType;
