@@ -382,9 +382,11 @@ function renderTextNodes(
  * This function returns a *new* array — the original `subsets` from the DB is never
  * mutated, so all parser/DB tests that assert on `getSubsetData()` continue to pass.
  *
- * Example: given `union Desirable,Feasible,Viable["Innovation"]` with no explicit
- * pairwise unions, this adds synthetic entries for [Desirable,Feasible],
- * [Desirable,Viable] and [Feasible,Viable] with a sensible default size.
+* The default size for pairwise intersections is chosen as 1/4 of the smaller
+ individual set size. This ratio ensures the overlap is visually distinct but
+ smaller than either contributing set, maintaining a balanced representation.
+ When set sizes are unknown, a fallback of 2.5 (the parser's default for 2-set unions)
+ is used.
  */
 function ensurePairwiseSubsets(subsets: VennData[]): VennData[] {
   // Build a set of all existing subset keys (sorted, joined) for fast lookup.
@@ -414,6 +416,9 @@ function ensurePairwiseSubsets(subsets: VennData[]): VennData[] {
           // Use a size that visually represents a meaningful pairwise overlap.
           // We default to 1/4 of the smaller of the two individual set sizes,
           // falling back to 2.5 (the default for a 2-set union in the parser).
+          // This ratio was chosen so the pairwise overlap is visible but smaller
+          // than either contributing set, providing a balanced visual representation
+          // when the actual size relationship between sets is not specified.
           const sizeA = individualSetSizes.get(pair[0]);
           const sizeB = individualSetSizes.get(pair[1]);
           const pairSize =

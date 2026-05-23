@@ -232,7 +232,21 @@ describe('Venn Diagram', () => {
     );
   });
 
-  it('17: should render a handDrawn venn with custom styles and text nodes', () => {
+  it('17: should render a venn diagram with partial pairwise subsets', () => {
+    imgSnapshotTest(
+      `venn-beta
+        title Partial Pairwise
+        set A
+        set B
+        set C
+        union A,B,C["ABC"]
+        union A,B["AB"]
+        union B,C["BC"]
+      `
+    );
+  });
+
+  it('18: should render a handDrawn venn with custom styles and text nodes', () => {
     imgSnapshotTest(
       `venn-beta
         set A
