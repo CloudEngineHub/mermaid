@@ -1,49 +1,18 @@
 // cspell:ignore Hegemann Wybrow
 
-import { overlapLength } from './geometry.js';
+import type { NodeBoundsInfo } from './geometry.js';
+import {
+  collectRealNodeBounds,
+  orthogonalSegmentsCross,
+  overlapLength,
+  segmentHitsAnyRect,
+} from './geometry.js';
 
 const EPS = 1e-3;
 const MIN_SHARED = 8;
 
 export function simplifyDetouredEdges(edges: any[], nodes: any[]): void {
-  interface RectLite {
-    left: number;
-    right: number;
-    top: number;
-    bottom: number;
-  }
-  interface NodeInfo {
-    id: string;
-    cx: number;
-    cy: number;
-    rect: RectLite;
-  }
-
-  const realNodes: NodeInfo[] = [];
-  const nodeInfoById = new Map<string, NodeInfo>();
-  for (const n of nodes) {
-    if ((n as { isGroup?: boolean }).isGroup) {
-      continue;
-    }
-    if ((n as { isEdgeLabel?: boolean }).isEdgeLabel) {
-      continue;
-    }
-    const cx = (n as { x?: number }).x ?? 0;
-    const cy = (n as { y?: number }).y ?? 0;
-    const w = (n as { width?: number }).width ?? 0;
-    const h = (n as { height?: number }).height ?? 0;
-    if (w <= 0 || h <= 0) {
-      continue;
-    }
-    const info: NodeInfo = {
-      id: String((n as { id?: string }).id ?? ''),
-      cx,
-      cy,
-      rect: { left: cx - w / 2, right: cx + w / 2, top: cy - h / 2, bottom: cy + h / 2 },
-    };
-    realNodes.push(info);
-    nodeInfoById.set(info.id, info);
-  }
+  const { nodeInfoById, realNodeRects } = collectRealNodeBounds(nodes);
 
   const countBends = (pts: { x: number; y: number }[]): number => {
     let bends = 0;
@@ -63,7 +32,7 @@ export function simplifyDetouredEdges(edges: any[], nodes: any[]): void {
   type Side = 'top' | 'bottom' | 'left' | 'right';
   const sides: Side[] = ['top', 'bottom', 'left', 'right'];
 
-  const portForSide = (n: NodeInfo, side: Side): { x: number; y: number } => {
+  const portForSide = (n: NodeBoundsInfo, side: Side): { x: number; y: number } => {
     switch (side) {
       case 'top':
         return { x: n.cx, y: n.rect.top };
@@ -182,10 +151,10 @@ export function simplifyDetouredEdges(edges: any[], nodes: any[]): void {
   };
 
   const outsideTracks = {
-    top: Math.min(...realNodes.map((node) => node.rect.top)) - ANCHOR,
-    bottom: Math.max(...realNodes.map((node) => node.rect.bottom)) + ANCHOR,
-    left: Math.min(...realNodes.map((node) => node.rect.left)) - ANCHOR,
-    right: Math.max(...realNodes.map((node) => node.rect.right)) + ANCHOR,
+    top: Math.min(...realNodeRects.map((node) => node.rect.top)) - ANCHOR,
+    bottom: Math.max(...realNodeRects.map((node) => node.rect.bottom)) + ANCHOR,
+    left: Math.min(...realNodeRects.map((node) => node.rect.left)) - ANCHOR,
+    right: Math.max(...realNodeRects.map((node) => node.rect.right)) + ANCHOR,
   };
 
   const buildOrthogonalPathCandidates = (
@@ -245,62 +214,11 @@ export function simplifyDetouredEdges(edges: any[], nodes: any[]): void {
     for (let i = 0; i < pts.length - 1; i++) {
       const a = pts[i];
       const b = pts[i + 1];
-      const segMinX = Math.min(a.x, b.x);
-      const segMaxX = Math.max(a.x, b.x);
-      const segMinY = Math.min(a.y, b.y);
-      const segMaxY = Math.max(a.y, b.y);
-      for (const n of realNodes) {
-        if (excludeIds.includes(n.id)) {
-          continue;
-        }
-        // Strict interior test with a 1-unit tolerance.
-        if (
-          segMaxX > n.rect.left + 1 &&
-          segMinX < n.rect.right - 1 &&
-          segMaxY > n.rect.top + 1 &&
-          segMinY < n.rect.bottom - 1
-        ) {
-          return true;
-        }
+      if (segmentHitsAnyRect(a, b, realNodeRects, excludeIds, 1)) {
+        return true;
       }
     }
     return false;
-  };
-
-  const segmentsCrossOrth = (
-    a1: { x: number; y: number },
-    b1: { x: number; y: number },
-    a2: { x: number; y: number },
-    b2: { x: number; y: number }
-  ): boolean => {
-    const s1H = Math.abs(a1.y - b1.y) < EPS;
-    const s1V = Math.abs(a1.x - b1.x) < EPS;
-    const s2H = Math.abs(a2.y - b2.y) < EPS;
-    const s2V = Math.abs(a2.x - b2.x) < EPS;
-    if ((s1H && s2H) || (s1V && s2V)) {
-      return false;
-    }
-    if (!(s1H || s1V) || !(s2H || s2V)) {
-      return false;
-    }
-    const horiz = s1H ? { a: a1, b: b1 } : { a: a2, b: b2 };
-    const vert = s1V ? { a: a1, b: b1 } : { a: a2, b: b2 };
-    const hY = horiz.a.y;
-    const hX1 = Math.min(horiz.a.x, horiz.b.x);
-    const hX2 = Math.max(horiz.a.x, horiz.b.x);
-    const vX = vert.a.x;
-    const vY1 = Math.min(vert.a.y, vert.b.y);
-    const vY2 = Math.max(vert.a.y, vert.b.y);
-    if (vX < hX1 || vX > hX2 || hY < vY1 || hY > vY2) {
-      return false;
-    }
-    const matchesHorizEndpoint =
-      (Math.abs(vX - horiz.a.x) < EPS && Math.abs(hY - horiz.a.y) < EPS) ||
-      (Math.abs(vX - horiz.b.x) < EPS && Math.abs(hY - horiz.b.y) < EPS);
-    const matchesVertEndpoint =
-      (Math.abs(vX - vert.a.x) < EPS && Math.abs(hY - vert.a.y) < EPS) ||
-      (Math.abs(vX - vert.b.x) < EPS && Math.abs(hY - vert.b.y) < EPS);
-    return !(matchesHorizEndpoint && matchesVertEndpoint);
   };
 
   const pathConflictCount = (
@@ -340,7 +258,7 @@ export function simplifyDetouredEdges(edges: any[], nodes: any[]): void {
         for (let j = 0; j < otherPts.length - 1; j++) {
           const c = otherPts[j];
           const d = otherPts[j + 1];
-          if (segmentsCrossOrth(a, b, c, d)) {
+          if (orthogonalSegmentsCross(a, b, c, d, EPS, EPS)) {
             conflicts++;
             continue;
           }
@@ -384,7 +302,7 @@ export function simplifyDetouredEdges(edges: any[], nodes: any[]): void {
   // LATER, so the raw attach points may sit a few units inside the
   // node rect. Nearest-side works regardless of whether the point is
   // on, just outside, or a few units inside the rect.
-  const nearestSideOfRect = (pt: { x: number; y: number }, info: NodeInfo): Side => {
+  const nearestSideOfRect = (pt: { x: number; y: number }, info: NodeBoundsInfo): Side => {
     const dTop = Math.abs(pt.y - info.rect.top);
     const dBottom = Math.abs(pt.y - info.rect.bottom);
     const dLeft = Math.abs(pt.x - info.rect.left);
