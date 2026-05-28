@@ -73,11 +73,7 @@ export function assignCoordinates(
   // This ensures nodes don't overlap horizontally after the direction transform
   const extraLayerGaps: number[] = [];
   if (isHorizontal) {
-    for (let i = 0; i < layers.length; i++) {
-      if (i === layers.length - 1) {
-        extraLayerGaps.push(0);
-        continue;
-      }
+    for (let i = 0; i + 1 < layers.length; i++) {
       // Find the max width of nodes in this layer and the next layer
       const thisLayerMaxWidth = layers[i].reduce((m, v) => Math.max(m, getWidth(v)), 0);
       const nextLayerMaxWidth = layers[i + 1].reduce((m, v) => Math.max(m, getWidth(v)), 0);
@@ -91,10 +87,6 @@ export function assignCoordinates(
       const requiredSpacing = (thisLayerMaxWidth + nextLayerMaxWidth) / 2;
       const extraNeeded = Math.max(0, requiredSpacing - normalSpacing - layerGap);
       extraLayerGaps.push(extraNeeded);
-    }
-  } else {
-    for (const _ of layers) {
-      extraLayerGaps.push(0);
     }
   }
 
