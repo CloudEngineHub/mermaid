@@ -1,6 +1,8 @@
 import type { LayoutData } from '../../../types.js';
 import {
   collectLayoutNodeRects,
+  sameX,
+  sameY,
   segmentBoundsOverlapRect,
   type LayoutNodeRect,
 } from './geometry.js';
@@ -57,14 +59,14 @@ function rerouteSubpathAroundLabel(
   // Use greedy (loop) expansion so that paths with multiple consecutive collinear
   // stubs (e.g. two k=1 anchor stubs on both ends) are all absorbed, not just
   // one step at a time.
-  const isHorizontalSeg = Math.abs(start.y - end.y) < EPS;
-  const isVerticalSeg = Math.abs(start.x - end.x) < EPS;
+  const isHorizontalSeg = sameY(start, end, EPS);
+  const isVerticalSeg = sameX(start, end, EPS);
   let effectiveStartIdx = startIdx;
   while (effectiveStartIdx > 0) {
     const prev = points[effectiveStartIdx - 1];
-    if (isHorizontalSeg && Math.abs(prev.y - start.y) < EPS) {
+    if (isHorizontalSeg && sameY(prev, start, EPS)) {
       effectiveStartIdx--;
-    } else if (isVerticalSeg && Math.abs(prev.x - start.x) < EPS) {
+    } else if (isVerticalSeg && sameX(prev, start, EPS)) {
       effectiveStartIdx--;
     } else {
       break;
@@ -75,9 +77,9 @@ function rerouteSubpathAroundLabel(
   let effectiveEndIdx = endIdx;
   while (effectiveEndIdx < points.length - 1) {
     const next = points[effectiveEndIdx + 1];
-    if (isHorizontalSeg && Math.abs(next.y - end.y) < EPS) {
+    if (isHorizontalSeg && sameY(next, end, EPS)) {
       effectiveEndIdx++;
-    } else if (isVerticalSeg && Math.abs(next.x - end.x) < EPS) {
+    } else if (isVerticalSeg && sameX(next, end, EPS)) {
       effectiveEndIdx++;
     } else {
       break;
@@ -102,9 +104,9 @@ function rerouteSubpathAroundLabel(
     const curStart = points[effectiveStartIdx];
     const curEnd = points[effectiveEndIdx];
     const prevIsVerticalStep =
-      Math.abs(prevStep.x - curStart.x) < EPS && Math.abs(prevStep.y - curStart.y) > EPS;
+      sameX(prevStep, curStart, EPS) && Math.abs(prevStep.y - curStart.y) > EPS;
     const nextIsVerticalStep =
-      Math.abs(nextStep.x - curEnd.x) < EPS && Math.abs(nextStep.y - curEnd.y) > EPS;
+      sameX(nextStep, curEnd, EPS) && Math.abs(nextStep.y - curEnd.y) > EPS;
     if (prevIsVerticalStep && nextIsVerticalStep) {
       const beforeDir = Math.sign(curStart.y - prevStep.y);
       const afterDir = Math.sign(nextStep.y - curEnd.y);
@@ -114,7 +116,7 @@ function rerouteSubpathAroundLabel(
         // Absorb any additional collinear horizontal suffix after the new end.
         while (effectiveEndIdx < points.length - 1) {
           const next = points[effectiveEndIdx + 1];
-          if (Math.abs(next.y - points[effectiveEndIdx].y) < EPS) {
+          if (sameY(next, points[effectiveEndIdx], EPS)) {
             effectiveEndIdx++;
           } else {
             break;
