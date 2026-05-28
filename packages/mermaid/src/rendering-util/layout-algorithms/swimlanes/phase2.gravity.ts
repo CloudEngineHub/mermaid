@@ -65,10 +65,9 @@ export function assignLayers_Gravity(gAcyclic: Graph, opts?: LayeringOptions): L
 
   // Iterative relaxation
   const iters = LAYERING.GRAVITY_ITERATIONS;
-  for (let it = 0; it < iters; it++) {
+  const relaxOrder = (nodeOrder: NodeId[]): boolean => {
     let changed = false;
-    // forward pass
-    for (const v of order) {
+    for (const v of nodeOrder) {
       const ps = preds.get(v) ?? [];
       const ss = succs.get(v) ?? [];
       if (ps.length === 0 && ss.length === 0) {
@@ -89,29 +88,14 @@ export function assignLayers_Gravity(gAcyclic: Graph, opts?: LayeringOptions): L
         changed = true;
       }
     }
+    return changed;
+  };
+
+  for (let it = 0; it < iters; it++) {
+    const forwardChanged = relaxOrder(order);
     // backward pass helps propagate upper bounds
-    for (const v of revOrder) {
-      const ps = preds.get(v) ?? [];
-      const ss = succs.get(v) ?? [];
-      if (ps.length === 0 && ss.length === 0) {
-        continue;
-      }
-      const predAvg =
-        ps.length > 0
-          ? ps.reduce((a, u) => a + (rankOf[u] ?? 0) + 1, 0) / ps.length
-          : (rankOf[v] ?? 0);
-      const succAvg =
-        ss.length > 0
-          ? ss.reduce((a, w) => a + (rankOf[w] ?? 0) - 1, 0) / ss.length
-          : (rankOf[v] ?? 0);
-      const desired = Math.round((predAvg + succAvg) / 2);
-      const clamped = clampFeasible(v, desired);
-      if (clamped !== rankOf[v]) {
-        rankOf[v] = clamped;
-        changed = true;
-      }
-    }
-    if (!changed) {
+    const backwardChanged = relaxOrder(revOrder);
+    if (!forwardChanged && !backwardChanged) {
       break;
     }
   }
