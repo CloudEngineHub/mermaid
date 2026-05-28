@@ -48,7 +48,7 @@ describe('Swimlanes DDLT — simple-2.mmd', () => {
     // This is a semantic ambiguity bug — the reader cannot tell which
     // label belongs to which edge.
     //
-    // The fix in direction.ts's `anchorLabelsToPolyline`: (a) rank
+    // The fix in postProcessing.ts's `anchorLabelsToPolyline`: (a) rank
     // candidate segments by non-collision first (Wybrow-Marriott alley-
     // midpoint analogue `e8804c93`), (b) remove MAX_ATTEMPTS=3 cap, and
     // (c) when the segment's midpoint collides, try parametric positions

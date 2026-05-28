@@ -72,7 +72,7 @@ describe('Swimlanes DDLT — 8-query-process-2.mmd', () => {
     // is never changed" (citing Eiglsperger et al. [67]). Sliding the
     // penultimate vertical from x=1191.89 to x=G.left=1197.41 preserves
     // the last direction (still vertical upward) and absorbs the 5.52u
-    // stub — iter 16's `collapseShortTerminalStub` pass in direction.ts.
+    // stub — iter 16's `collapseShortTerminalStub` pass in postProcessing.ts.
     //
     // Pin: the last segment of L_E_G_0 must be at least MIN_TERMINAL_STUB
     // units long (10u — arrowhead base length). This is axis-agnostic:

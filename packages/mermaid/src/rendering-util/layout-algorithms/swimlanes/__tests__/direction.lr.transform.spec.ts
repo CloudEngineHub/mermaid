@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { LayoutData } from '../../../types.js';
 import type { Graph, NodeId, OrderedLayers, Coordinates } from '../helpers.js';
 import { writeBackToLayoutData } from '../helpers.js';
-import { applySwimlaneDirectionTransform } from '../direction.js';
+import { postProcessSwimlaneLayout as applySwimlaneDirectionTransform } from '../postProcessing.js';
 
 function makeTestLayout(): LayoutData {
   // Minimal layout with two nodes in the same lane but different layers (vertical positions)

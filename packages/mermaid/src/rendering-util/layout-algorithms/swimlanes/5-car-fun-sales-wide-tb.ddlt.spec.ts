@@ -48,7 +48,7 @@ describe('Swimlanes DDLT — 5-car-fun-sales-wide-tb.mmd', () => {
     // (Hegemann-Wolff src d30cdbe1): two edges claiming the same node face
     // must be globally feasibility-checked as a set, not sequentially.
     //
-    // Before iter 9, `simplifyDetouredEdges` in direction.ts rewrote
+    // Before iter 9, `simplifyDetouredEdges` in postProcessing.ts rewrote
     // L_D_E_0 from a 4-bend raykov detour (around H which sits on the
     // same row between D and E) to a 2-bend L-shape using (D.top, E.top),
     // but it didn't check whether E.top was already claimed by another

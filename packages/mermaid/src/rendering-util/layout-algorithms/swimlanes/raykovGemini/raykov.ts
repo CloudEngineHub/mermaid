@@ -116,7 +116,7 @@ export function routeEdgesOrthogonal(data: LayoutData, direction?: string): Layo
   //   Strategy 1 (late-insertion / diss.pdf §118): labelled edges are routed
   //   as single unbroken A→B polylines with labels invisible to routing.
   //   Labels are then anchored post-routing onto a middle segment of the
-  //   resulting polyline via direction.ts's `anchorLabelsToPolyline` pass.
+  //   resulting polyline via postProcessing.ts's `anchorLabelsToPolyline` pass.
   //   No shadow-split, no L-bend bridge, no per-edge label obstacle exclusion.
   interface InternalRoutingEdge {
     id: string;
@@ -163,7 +163,7 @@ export function routeEdgesOrthogonal(data: LayoutData, direction?: string): Layo
   //
   // Strategy 1 (late-insertion / diss.pdf §118): edge-label nodes are NOT
   // obstacles during routing. Labels are placed post-routing onto an
-  // existing polyline segment via `anchorLabelsToPolyline` in direction.ts.
+  // existing polyline segment via `anchorLabelsToPolyline` in postProcessing.ts.
   // Foreign edges never route around labels, so there is no "foreign edge
   // routed around old label position, label later moved" inconsistency.
   interface ObstacleRect {
@@ -902,7 +902,7 @@ export function routeEdgesOrthogonal(data: LayoutData, direction?: string): Layo
     // For aligned-column back-edges (e.g. L_J_E_0 in 7-car-sales-constr
     // where J and E share TB x=392), the transform maps the LR-straight
     // horizontal to a TB-straight vertical, and the final endpoint clip
-    // pass in direction.ts snaps each endpoint to the facing side
+    // pass in postProcessing.ts snaps each endpoint to the facing side
     // center (J.top-center, E.bottom-center) — resolving the
     // `edge-corner-connection` pathology where the prior 5-point U-detour
     // landed endpoints 0.67–3u from a node corner.
@@ -927,7 +927,7 @@ export function routeEdgesOrthogonal(data: LayoutData, direction?: string): Layo
         if (!directBlocked) {
           // Emit the canonical `port → anchor → anchor → port` 4-point
           // shape. Because all four points are collinear along the
-          // shared axis, direction.ts's `simplifyPolyline` collapses it
+          // shared axis, postProcessing.ts's `simplifyPolyline` collapses it
           // to a clean 2-point straight line downstream, and the
           // endpoint-clip pass snaps the port endpoints onto the
           // facing node side centers. Keeping the 4-point form here

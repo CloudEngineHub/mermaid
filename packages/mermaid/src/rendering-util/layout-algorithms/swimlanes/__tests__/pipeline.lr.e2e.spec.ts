@@ -3,7 +3,7 @@ import type { LayoutData } from '../../../types.js';
 import { toGraphView, writeBackToLayoutData } from '../helpers.js';
 import { sugiyamaLayout } from '../pipeline.js';
 import { routeEdgesOrthogonal } from '../raykovGemini/raykov.js';
-import { applySwimlaneDirectionTransform } from '../direction.js';
+import { postProcessSwimlaneLayout as applySwimlaneDirectionTransform } from '../postProcessing.js';
 
 const SWIMLANE_E2E_LOG_PREFIX = '[SWIMLANE_E2E]';
 const DEBUG = process.env.SWIMLANE_DDLT_DEBUG === '1';

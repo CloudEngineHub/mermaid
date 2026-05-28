@@ -423,7 +423,7 @@ describe('Raykov orthogonal router (algo-op.md)', () => {
   // Iteration 5 (Strategy 1 / diss.pdf §118 late-insertion pivot): edge
   // label nodes are NO LONGER routing obstacles. Labels are placed onto
   // an existing middle segment of their own edge's polyline after
-  // routing, via `anchorLabelsToPolyline` in direction.ts. Foreign edges
+  // routing, via `anchorLabelsToPolyline` in postProcessing.ts. Foreign edges
   // therefore route freely through where labels *used to* sit, and the
   // post-routing anchor repositions each label onto a clean segment.
   // The two tests below were written for the label-as-obstacle routing
