@@ -157,7 +157,7 @@ export function applyLrDirectionTransform(
     return false;
   }
 
-  const titleBandOffset = 36;
+  const titleBandSize = 36;
 
   let totalWidth = 0;
   let totalHeight = 0;
@@ -172,7 +172,7 @@ export function applyLrDirectionTransform(
   for (const n of contentNodes) {
     const x0 = n.x ?? 0;
     const y0 = n.y ?? 0;
-    const newX = (y0 - minY) * horizontalScaleFactor + titleBandOffset;
+    const newX = (y0 - minY) * horizontalScaleFactor + titleBandSize;
     const newY = x0 - minX;
 
     n.x = newX;
@@ -186,7 +186,7 @@ export function applyLrDirectionTransform(
     for (const p of e.points) {
       const x0 = p.x;
       const y0 = p.y;
-      const newX = (y0 - minY) * horizontalScaleFactor + titleBandOffset;
+      const newX = (y0 - minY) * horizontalScaleFactor + titleBandSize;
       const newY = x0 - minX;
       p.x = newX;
       p.y = newY;
@@ -257,16 +257,15 @@ export function applyLrDirectionTransform(
     return true;
   }
 
-  const minHeaderMargin = 36;
   const fullContentWidth = Math.max(0, globalMaxXChild - globalMinXChild);
   const horizontalMargin = Math.max(maxPad, 10);
   const bodyWidth = fullContentWidth + 2 * horizontalMargin;
-  const laneWidth = minHeaderMargin + bodyWidth;
+  const laneWidth = titleBandSize + bodyWidth;
   const bodyCenter = (globalMinXChild + globalMaxXChild) / 2;
   const bodyLeft = bodyCenter - bodyWidth / 2;
-  const laneLeft = bodyLeft - minHeaderMargin;
+  const laneLeft = bodyLeft - titleBandSize;
   const centerX = laneLeft + laneWidth / 2;
-  const verticalMargin = Math.max(maxPad, minHeaderMargin);
+  const verticalMargin = Math.max(maxPad, titleBandSize);
 
   laneBounds.sort((a, b) => a.centerY - b.centerY);
 
