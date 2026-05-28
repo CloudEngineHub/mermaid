@@ -1,6 +1,12 @@
 // cspell:ignore Battista Eades Eiglsperger Hegemann Kandinsky segs Siebenhaller Tamassia Tollis Fößmeier
 import type { Edge, Node } from '../../../types.js';
-import { collectRealNodeBounds, orthogonalSegmentsCross, segmentHitsAnyRect } from './geometry.js';
+import {
+  classifyThreeSegmentRoute,
+  collectRealNodeBounds,
+  dedupeConsecutivePoints,
+  segmentConflictsWithAnyEdge,
+  segmentHitsAnyRect,
+} from './geometry.js';
 
 const EPS = 1e-6;
 // δ_s — the Kandinsky port-spacing constant (Fößmeier–Kaufmann 1995;
@@ -99,38 +105,6 @@ interface PointLite {
 export function portSwapToLShape(edges: Edge[], nodes: Node[]): void {
   const { nodeInfoById, realNodeRects } = collectRealNodeBounds(nodes);
 
-  // Collinear-axis overlap: two segments on the same axis at the same
-  // coordinate with overlapping spans. Not flagged by orthogonalSegmentsCross
-  // (perpendicular-only) but IS an edge overlap for scoreLayout and for
-  // Kandinsky face-capacity (two ports at the same offset on the same
-  // face).
-  const segmentsOverlapAxis = (
-    a1: PointLite,
-    b1: PointLite,
-    a2: PointLite,
-    b2: PointLite
-  ): boolean => {
-    const s1H = Math.abs(a1.y - b1.y) < EPS;
-    const s1V = Math.abs(a1.x - b1.x) < EPS;
-    const s2H = Math.abs(a2.y - b2.y) < EPS;
-    const s2V = Math.abs(a2.x - b2.x) < EPS;
-    if (s1V && s2V && Math.abs(a1.x - a2.x) < EPS) {
-      const m1 = Math.min(a1.y, b1.y);
-      const M1 = Math.max(a1.y, b1.y);
-      const m2 = Math.min(a2.y, b2.y);
-      const M2 = Math.max(a2.y, b2.y);
-      return M1 > m2 + EPS && M2 > m1 + EPS;
-    }
-    if (s1H && s2H && Math.abs(a1.y - a2.y) < EPS) {
-      const m1 = Math.min(a1.x, b1.x);
-      const M1 = Math.max(a1.x, b1.x);
-      const m2 = Math.min(a2.x, b2.x);
-      const M2 = Math.max(a2.x, b2.x);
-      return M1 > m2 + EPS && M2 > m1 + EPS;
-    }
-    return false;
-  };
-
   for (const edge of edges) {
     if (edge.isLayoutOnly) {
       continue;
@@ -144,29 +118,13 @@ export function portSwapToLShape(edges: Edge[], nodes: Node[]): void {
     // produce duplicates). We operate on the DEDUPED polyline but write
     // back without duplicates too — the rendering-handoff pass later
     // re-duplicates endpoints for the intersect-rect guard.
-    const deduped: PointLite[] = [];
-    for (const p of pts) {
-      const last = deduped.length > 0 ? deduped[deduped.length - 1] : undefined;
-      if (!last || Math.abs(p.x - last.x) > EPS || Math.abs(p.y - last.y) > EPS) {
-        deduped.push(p);
-      }
-    }
-    if (deduped.length !== 4) {
+    const route = classifyThreeSegmentRoute(dedupeConsecutivePoints(pts, EPS), EPS);
+    if (!route) {
       continue;
     }
 
-    const [p0, p1, p2, p3] = deduped;
-    const seg01H = Math.abs(p0.y - p1.y) < EPS && Math.abs(p0.x - p1.x) > EPS;
-    const seg12V = Math.abs(p1.x - p2.x) < EPS && Math.abs(p1.y - p2.y) > EPS;
-    const seg23H = Math.abs(p2.y - p3.y) < EPS && Math.abs(p2.x - p3.x) > EPS;
-    const seg01V = Math.abs(p0.x - p1.x) < EPS && Math.abs(p0.y - p1.y) > EPS;
-    const seg12H = Math.abs(p1.y - p2.y) < EPS && Math.abs(p1.x - p2.x) > EPS;
-    const seg23V = Math.abs(p2.x - p3.x) < EPS && Math.abs(p2.y - p3.y) > EPS;
-    const isHVH = seg01H && seg12V && seg23H;
-    const isVHV = seg01V && seg12H && seg23V;
-    if (!isHVH && !isVHV) {
-      continue;
-    }
+    const { p3 } = route;
+    const isHVH = route.kind === 'HVH';
 
     const srcId = edge.start;
     const dstId = edge.end;
@@ -254,50 +212,19 @@ export function portSwapToLShape(edges: Edge[], nodes: Node[]): void {
       // Guards 2 + 4: check every other edge's every segment for a
       // perpendicular crossing or a collinear-axis overlap with EITHER
       // of the new segments.
-      let conflict = false;
-      for (const other of edges) {
-        if (other === edge) {
-          continue;
-        }
-        if (other.isLayoutOnly) {
-          continue;
-        }
-        const opts = other.points;
-        if (!opts || opts.length < 2) {
-          continue;
-        }
-        for (let i = 0; i < opts.length - 1; i++) {
-          const oa = opts[i];
-          const ob = opts[i + 1];
-          if (Math.abs(oa.x - ob.x) < EPS && Math.abs(oa.y - ob.y) < EPS) {
-            continue; // zero-length segment of the other edge
-          }
-          if (!firstSegDegenerate) {
-            if (orthogonalSegmentsCross(np0, np1, oa, ob, EPS)) {
-              conflict = true;
-              break;
-            }
-            if (segmentsOverlapAxis(np0, np1, oa, ob)) {
-              conflict = true;
-              break;
-            }
-          }
-          if (!secondSegDegenerate) {
-            if (orthogonalSegmentsCross(np1, np2, oa, ob, EPS)) {
-              conflict = true;
-              break;
-            }
-            if (segmentsOverlapAxis(np1, np2, oa, ob)) {
-              conflict = true;
-              break;
-            }
-          }
-        }
-        if (conflict) {
-          break;
-        }
-      }
-      if (conflict) {
+      const firstSegConflicts =
+        !firstSegDegenerate &&
+        segmentConflictsWithAnyEdge(np0, np1, edges, edge, {
+          epsilon: EPS,
+          skipDegenerateOther: true,
+        });
+      const secondSegConflicts =
+        !secondSegDegenerate &&
+        segmentConflictsWithAnyEdge(np1, np2, edges, edge, {
+          epsilon: EPS,
+          skipDegenerateOther: true,
+        });
+      if (firstSegConflicts || secondSegConflicts) {
         continue;
       }
 

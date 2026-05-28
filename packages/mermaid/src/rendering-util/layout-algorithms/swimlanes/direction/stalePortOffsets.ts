@@ -1,6 +1,6 @@
 // cspell:ignore Hegemann Wolff raykov
 import type { Edge, Node } from '../../../types.js';
-import { segmentBoundsOverlapRect } from './geometry.js';
+import { classifyThreeSegmentRoute, segmentBoundsOverlapRect } from './geometry.js';
 
 const EPS = 1e-3;
 const JOG_MAX = 20; // matches raykov MAX_PORT_SPACING
@@ -142,7 +142,11 @@ export function straightenStalePortOffsets(edges: Edge[], nodeByIdMap: Map<strin
     if (!pts || pts.length !== 4) {
       continue;
     }
-    const [p0, p1, p2, p3] = pts;
+    const route = classifyThreeSegmentRoute(pts, EPS);
+    if (!route) {
+      continue;
+    }
+    const { p0, p1, p2, p3 } = route;
     const startId = edge.start;
     const endId = edge.end;
     const edgeId = edge.id;
@@ -168,18 +172,7 @@ export function straightenStalePortOffsets(edges: Edge[], nodeByIdMap: Map<strin
     };
 
     // Identify the pattern: H-V-H or V-H-V with a short middle segment.
-    const seg01H = Math.abs(p0.y - p1.y) < EPS && Math.abs(p0.x - p1.x) > EPS;
-    const seg12V = Math.abs(p1.x - p2.x) < EPS && Math.abs(p1.y - p2.y) > EPS;
-    const seg23H = Math.abs(p2.y - p3.y) < EPS && Math.abs(p2.x - p3.x) > EPS;
-    const seg01V = Math.abs(p0.x - p1.x) < EPS && Math.abs(p0.y - p1.y) > EPS;
-    const seg12H = Math.abs(p1.y - p2.y) < EPS && Math.abs(p1.x - p2.x) > EPS;
-    const seg23V = Math.abs(p2.x - p3.x) < EPS && Math.abs(p2.y - p3.y) > EPS;
-
-    const isHVH = seg01H && seg12V && seg23H;
-    const isVHV = seg01V && seg12H && seg23V;
-    if (!isHVH && !isVHV) {
-      continue;
-    }
+    const isHVH = route.kind === 'HVH';
     // Middle segment length check.
     const middleLen = isHVH ? Math.abs(p2.y - p1.y) : Math.abs(p2.x - p1.x);
     if (middleLen > JOG_MAX) {

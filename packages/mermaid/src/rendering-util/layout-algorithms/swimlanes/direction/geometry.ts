@@ -22,6 +22,19 @@ export interface NodeBoundsInfo extends RectEntry {
   cy: number;
 }
 
+export interface ThreeSegmentRoute {
+  kind: 'HVH' | 'VHV';
+  p0: Point;
+  p1: Point;
+  p2: Point;
+  p3: Point;
+}
+
+interface EdgeSegmentInput {
+  points?: Point[];
+  isLayoutOnly?: boolean;
+}
+
 interface NodeBoundsInput {
   id?: string;
   x?: number;
@@ -73,6 +86,28 @@ export function dedupeConsecutivePoints(points: Point[], epsilon = EPS): Point[]
     }
   }
   return result;
+}
+
+export function classifyThreeSegmentRoute(
+  points: Point[] | undefined,
+  epsilon = EPS
+): ThreeSegmentRoute | undefined {
+  if (!points || points.length !== 4) {
+    return undefined;
+  }
+  const [p0, p1, p2, p3] = points;
+  const isHVH =
+    isHorizontalSegment(p0, p1, epsilon) &&
+    isVerticalSegment(p1, p2, epsilon) &&
+    isHorizontalSegment(p2, p3, epsilon);
+  if (isHVH) {
+    return { kind: 'HVH', p0, p1, p2, p3 };
+  }
+  const isVHV =
+    isVerticalSegment(p0, p1, epsilon) &&
+    isHorizontalSegment(p1, p2, epsilon) &&
+    isVerticalSegment(p2, p3, epsilon);
+  return isVHV ? { kind: 'VHV', p0, p1, p2, p3 } : undefined;
 }
 
 export function segmentBoundsOverlapRect(
@@ -194,6 +229,69 @@ export function orthogonalSegmentsCross(
     (Math.abs(vX - vert.a.x) < endpointTolerance && Math.abs(hY - vert.a.y) < endpointTolerance) ||
     (Math.abs(vX - vert.b.x) < endpointTolerance && Math.abs(hY - vert.b.y) < endpointTolerance);
   return !(matchesHorizEndpoint && matchesVertEndpoint);
+}
+
+export function sameAxisSegmentsOverlap(
+  a1: Point,
+  b1: Point,
+  a2: Point,
+  b2: Point,
+  epsilon = EPS
+): boolean {
+  const s1H = sameY(a1, b1, epsilon);
+  const s1V = sameX(a1, b1, epsilon);
+  const s2H = sameY(a2, b2, epsilon);
+  const s2V = sameX(a2, b2, epsilon);
+  if (s1V && s2V && sameX(a1, a2, epsilon)) {
+    const m1 = Math.min(a1.y, b1.y);
+    const M1 = Math.max(a1.y, b1.y);
+    const m2 = Math.min(a2.y, b2.y);
+    const M2 = Math.max(a2.y, b2.y);
+    return M1 > m2 + epsilon && M2 > m1 + epsilon;
+  }
+  if (s1H && s2H && sameY(a1, a2, epsilon)) {
+    const m1 = Math.min(a1.x, b1.x);
+    const M1 = Math.max(a1.x, b1.x);
+    const m2 = Math.min(a2.x, b2.x);
+    const M2 = Math.max(a2.x, b2.x);
+    return M1 > m2 + epsilon && M2 > m1 + epsilon;
+  }
+  return false;
+}
+
+export function segmentConflictsWithAnyEdge(
+  a: Point,
+  b: Point,
+  edges: Iterable<EdgeSegmentInput>,
+  excludeEdge?: EdgeSegmentInput,
+  {
+    epsilon = EPS,
+    skipDegenerateOther = false,
+  }: { epsilon?: number; skipDegenerateOther?: boolean } = {}
+): boolean {
+  for (const other of edges) {
+    if (other === excludeEdge || other.isLayoutOnly) {
+      continue;
+    }
+    const points = other.points;
+    if (!points || points.length < 2) {
+      continue;
+    }
+    for (let i = 0; i < points.length - 1; i++) {
+      const oa = points[i];
+      const ob = points[i + 1];
+      if (skipDegenerateOther && samePoint(oa, ob, epsilon)) {
+        continue;
+      }
+      if (
+        orthogonalSegmentsCross(a, b, oa, ob, epsilon) ||
+        sameAxisSegmentsOverlap(a, b, oa, ob, epsilon)
+      ) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 export function orthogonalSegmentsStrictlyCross(

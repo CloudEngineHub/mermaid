@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  classifyThreeSegmentRoute,
   collectRealNodeBounds,
   orthogonalSegmentsCross,
   orthogonalSegmentsStrictlyCross,
+  sameAxisSegmentsOverlap,
+  segmentConflictsWithAnyEdge,
   segmentHitsAnyRect,
 } from './geometry.js';
 
@@ -88,6 +91,35 @@ describe('swimlane direction geometry', () => {
       expect(segmentHitsAnyRect(p(-5, 5), p(15, 5), rects)).toBe(true);
       expect(segmentHitsAnyRect(p(-5, 5), p(15, 5), rects, ['A'])).toBe(false);
       expect(segmentHitsAnyRect(p(-5, 0.5), p(15, 0.5), rects, [], 1)).toBe(false);
+    });
+  });
+
+  describe('route shape and candidate conflict helpers', () => {
+    it('classifies 4-point H-V-H and V-H-V routes', () => {
+      expect(classifyThreeSegmentRoute([p(0, 0), p(10, 0), p(10, 20), p(30, 20)])?.kind).toBe(
+        'HVH'
+      );
+      expect(classifyThreeSegmentRoute([p(0, 0), p(0, 10), p(20, 10), p(20, 30)])?.kind).toBe(
+        'VHV'
+      );
+      expect(classifyThreeSegmentRoute([p(0, 0), p(10, 10), p(20, 10), p(20, 30)])).toBe(undefined);
+    });
+
+    it('detects same-axis segment overlap', () => {
+      expect(sameAxisSegmentsOverlap(p(0, 0), p(10, 0), p(5, 0), p(15, 0))).toBe(true);
+      expect(sameAxisSegmentsOverlap(p(0, 0), p(10, 0), p(10, 0), p(15, 0))).toBe(false);
+      expect(sameAxisSegmentsOverlap(p(0, 0), p(10, 0), p(5, 1), p(15, 1))).toBe(false);
+    });
+
+    it('checks candidate segment conflicts against other visible edges', () => {
+      const self = { points: [p(0, 0), p(10, 0)] };
+      const crossing = { points: [p(5, -5), p(5, 5)] };
+      const overlap = { points: [p(20, 0), p(30, 0)] };
+      const layoutOnly = { isLayoutOnly: true, points: [p(0, -5), p(0, 5)] };
+
+      expect(segmentConflictsWithAnyEdge(p(0, 0), p(10, 0), [self, crossing], self)).toBe(true);
+      expect(segmentConflictsWithAnyEdge(p(21, 0), p(25, 0), [self, overlap], self)).toBe(true);
+      expect(segmentConflictsWithAnyEdge(p(0, 0), p(10, 0), [self, layoutOnly], self)).toBe(false);
     });
   });
 });

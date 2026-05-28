@@ -1,6 +1,11 @@
 // cspell:ignore Hegemann Kandinsky Siebenhaller
 import type { Edge, Node } from '../../../types.js';
-import { collectRealNodeBounds, orthogonalSegmentsCross, segmentHitsAnyRect } from './geometry.js';
+import {
+  classifyThreeSegmentRoute,
+  collectRealNodeBounds,
+  segmentConflictsWithAnyEdge,
+  segmentHitsAnyRect,
+} from './geometry.js';
 
 const EPS = 1e-6;
 const MIN_PORT_SPACING = 8;
@@ -108,19 +113,7 @@ export function straightenCollinearSiblingDetours(edges: Edge[], nodes: Node[]):
       continue;
     }
     const pts = edge.points;
-    if (!pts || pts.length !== 4) {
-      continue;
-    }
-    const [p0, p1, p2, p3] = pts;
-    const seg01H = Math.abs(p0.y - p1.y) < EPS && Math.abs(p0.x - p1.x) > EPS;
-    const seg12V = Math.abs(p1.x - p2.x) < EPS && Math.abs(p1.y - p2.y) > EPS;
-    const seg23H = Math.abs(p2.y - p3.y) < EPS && Math.abs(p2.x - p3.x) > EPS;
-    const seg01V = Math.abs(p0.x - p1.x) < EPS && Math.abs(p0.y - p1.y) > EPS;
-    const seg12H = Math.abs(p1.y - p2.y) < EPS && Math.abs(p1.x - p2.x) > EPS;
-    const seg23V = Math.abs(p2.x - p3.x) < EPS && Math.abs(p2.y - p3.y) > EPS;
-    const isHVH = seg01H && seg12V && seg23H;
-    const isVHV = seg01V && seg12H && seg23V;
-    if (!isHVH && !isVHV) {
+    if (!classifyThreeSegmentRoute(pts, EPS)) {
       continue;
     }
 
@@ -200,57 +193,7 @@ export function straightenCollinearSiblingDetours(edges: Edge[], nodes: Node[]):
         continue;
       }
 
-      const shiftedIsVertical = Math.abs(shiftedSrc.x - shiftedDst.x) < EPS;
-      const shiftedMinX = Math.min(shiftedSrc.x, shiftedDst.x);
-      const shiftedMaxX = Math.max(shiftedSrc.x, shiftedDst.x);
-      const shiftedMinY = Math.min(shiftedSrc.y, shiftedDst.y);
-      const shiftedMaxY = Math.max(shiftedSrc.y, shiftedDst.y);
-      let introducesCrossing = false;
-      for (const other of edges) {
-        if (other === edge) {
-          continue;
-        }
-        if (other.isLayoutOnly) {
-          continue;
-        }
-        const opts = other.points;
-        if (!opts || opts.length < 2) {
-          continue;
-        }
-        for (let i = 0; i < opts.length - 1; i++) {
-          if (orthogonalSegmentsCross(shiftedSrc, shiftedDst, opts[i], opts[i + 1], EPS)) {
-            introducesCrossing = true;
-            break;
-          }
-          const oa = opts[i];
-          const ob = opts[i + 1];
-          const otherIsVertical = Math.abs(oa.x - ob.x) < EPS;
-          const otherIsHorizontal = Math.abs(oa.y - ob.y) < EPS;
-          if (shiftedIsVertical && otherIsVertical && Math.abs(oa.x - shiftedSrc.x) < EPS) {
-            const oMinY = Math.min(oa.y, ob.y);
-            const oMaxY = Math.max(oa.y, ob.y);
-            if (oMaxY > shiftedMinY + EPS && oMinY < shiftedMaxY - EPS) {
-              introducesCrossing = true;
-              break;
-            }
-          } else if (
-            !shiftedIsVertical &&
-            otherIsHorizontal &&
-            Math.abs(oa.y - shiftedSrc.y) < EPS
-          ) {
-            const oMinX = Math.min(oa.x, ob.x);
-            const oMaxX = Math.max(oa.x, ob.x);
-            if (oMaxX > shiftedMinX + EPS && oMinX < shiftedMaxX - EPS) {
-              introducesCrossing = true;
-              break;
-            }
-          }
-        }
-        if (introducesCrossing) {
-          break;
-        }
-      }
-      if (introducesCrossing) {
+      if (segmentConflictsWithAnyEdge(shiftedSrc, shiftedDst, edges, edge, { epsilon: EPS })) {
         continue;
       }
 
