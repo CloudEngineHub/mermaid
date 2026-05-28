@@ -5,9 +5,11 @@ import {
   isHorizontalSegment,
   isVerticalSegment,
   overlapLength,
+  orthogonalSegmentsForPoints,
+  orthogonalSegmentsStrictlyCross,
   segmentBoundsOverlapRect,
 } from './geometry.js';
-import type { Point, RectBounds } from './geometry.js';
+import type { OrthogonalSegment, Point, RectBounds } from './geometry.js';
 
 const EPS_LOCAL = 1e-3;
 const MIN_SHARED = 8;
@@ -15,12 +17,7 @@ const MIN_SHARED = 8;
 type PointLite = Point;
 type RectLite = RectBounds;
 
-interface SegmentLite {
-  a: PointLite;
-  b: PointLite;
-  horizontal: boolean;
-  vertical: boolean;
-}
+type SegmentLite = OrthogonalSegment;
 
 const rectOfNode = (node: any): RectLite | undefined => {
   const cx = (node as { x?: number }).x ?? 0;
@@ -43,39 +40,7 @@ const sameAxisOverlap = (a: SegmentLite, b: SegmentLite): number => {
   return 0;
 };
 
-const segmentsCrossStrict = (a: SegmentLite, b: SegmentLite): boolean => {
-  if (!((a.horizontal && b.vertical) || (a.vertical && b.horizontal))) {
-    return false;
-  }
-  const h = a.horizontal ? a : b;
-  const v = a.vertical ? a : b;
-  const hY = h.a.y;
-  const hXMin = Math.min(h.a.x, h.b.x);
-  const hXMax = Math.max(h.a.x, h.b.x);
-  const vX = v.a.x;
-  const vYMin = Math.min(v.a.y, v.b.y);
-  const vYMax = Math.max(v.a.y, v.b.y);
-  return (
-    vX > hXMin + EPS_LOCAL &&
-    vX < hXMax - EPS_LOCAL &&
-    hY > vYMin + EPS_LOCAL &&
-    hY < vYMax - EPS_LOCAL
-  );
-};
-
-const segmentsFor = (points: PointLite[]): SegmentLite[] => {
-  const result: SegmentLite[] = [];
-  for (let i = 0; i < points.length - 1; i++) {
-    const a = points[i];
-    const b = points[i + 1];
-    const horizontal = isHorizontalSegment(a, b);
-    const vertical = isVerticalSegment(a, b);
-    if (horizontal || vertical) {
-      result.push({ a, b, horizontal, vertical });
-    }
-  }
-  return result;
-};
+const segmentsFor = orthogonalSegmentsForPoints;
 
 export function separateSharedRenderedTerminalLanes(
   edges: any[],
@@ -434,7 +399,15 @@ export function collapseRedundantRectangularDoglegs(
           if (sameAxisOverlap(candidateSegment, otherSegment) >= MIN_SHARED) {
             return false;
           }
-          if (segmentsCrossStrict(candidateSegment, otherSegment)) {
+          if (
+            orthogonalSegmentsStrictlyCross(
+              candidateSegment.a,
+              candidateSegment.b,
+              otherSegment.a,
+              otherSegment.b,
+              EPS_LOCAL
+            )
+          ) {
             return false;
           }
         }
@@ -610,7 +583,15 @@ export function resolveRenderedOrthogonalCrossings(
         const secondSegments = segmentsFor(pointsFor(second, replacementEdge, replacement));
         for (const firstSegment of firstSegments) {
           for (const secondSegment of secondSegments) {
-            if (segmentsCrossStrict(firstSegment, secondSegment)) {
+            if (
+              orthogonalSegmentsStrictlyCross(
+                firstSegment.a,
+                firstSegment.b,
+                secondSegment.a,
+                secondSegment.b,
+                EPS_LOCAL
+              )
+            ) {
               count++;
             }
           }

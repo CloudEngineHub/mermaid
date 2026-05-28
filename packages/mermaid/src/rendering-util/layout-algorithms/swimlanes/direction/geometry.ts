@@ -30,6 +30,14 @@ export interface ThreeSegmentRoute {
   p3: Point;
 }
 
+export interface OrthogonalSegment {
+  index: number;
+  a: Point;
+  b: Point;
+  horizontal: boolean;
+  vertical: boolean;
+}
+
 interface EdgeSegmentInput {
   points?: Point[];
   isLayoutOnly?: boolean;
@@ -75,6 +83,20 @@ export function overlapLength(a1: number, a2: number, b1: number, b2: number): n
     0,
     Math.min(Math.max(a1, a2), Math.max(b1, b2)) - Math.max(Math.min(a1, a2), Math.min(b1, b2))
   );
+}
+
+export function orthogonalSegmentsForPoints(points: Point[], epsilon = EPS): OrthogonalSegment[] {
+  const result: OrthogonalSegment[] = [];
+  for (let i = 0; i < points.length - 1; i++) {
+    const a = points[i];
+    const b = points[i + 1];
+    const horizontal = isHorizontalSegment(a, b, epsilon);
+    const vertical = isVerticalSegment(a, b, epsilon);
+    if (horizontal || vertical) {
+      result.push({ index: i, a, b, horizontal, vertical });
+    }
+  }
+  return result;
 }
 
 export function dedupeConsecutivePoints(points: Point[], epsilon = EPS): Point[] {

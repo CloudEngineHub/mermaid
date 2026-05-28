@@ -1,12 +1,12 @@
 import type { Edge, Node } from '../../../types.js';
 import {
   dedupeConsecutivePoints,
-  isHorizontalSegment,
-  isVerticalSegment,
   overlapLength,
+  orthogonalSegmentsForPoints,
+  orthogonalSegmentsStrictlyCross,
   segmentBoundsOverlapRect,
 } from './geometry.js';
-import type { Point, RectBounds } from './geometry.js';
+import type { OrthogonalSegment, Point, RectBounds } from './geometry.js';
 
 export function nudgeSharedInteriorSubpaths(edges: Edge[], nodeByIdMap: Map<string, Node>): void {
   const EPS_LOCAL = 1e-3;
@@ -18,13 +18,8 @@ export function nudgeSharedInteriorSubpaths(edges: Edge[], nodeByIdMap: Map<stri
   type PointLite = Point;
   type RectLite = RectBounds;
 
-  interface SegmentLite {
+  interface SegmentLite extends OrthogonalSegment {
     edge: Edge;
-    index: number;
-    a: PointLite;
-    b: PointLite;
-    horizontal: boolean;
-    vertical: boolean;
     interior: boolean;
   }
 
@@ -65,56 +60,12 @@ export function nudgeSharedInteriorSubpaths(edges: Edge[], nodeByIdMap: Map<stri
     return 0;
   };
 
-  const segmentsCrossStrict = (
-    a1: PointLite,
-    a2: PointLite,
-    b1: PointLite,
-    b2: PointLite
-  ): boolean => {
-    const aHoriz = isHorizontalSegment(a1, a2);
-    const aVert = isVerticalSegment(a1, a2);
-    const bHoriz = isHorizontalSegment(b1, b2);
-    const bVert = isVerticalSegment(b1, b2);
-    if (!((aHoriz && bVert) || (aVert && bHoriz))) {
-      return false;
-    }
-    const h = aHoriz ? { a: a1, b: a2 } : { a: b1, b: b2 };
-    const v = aHoriz ? { a: b1, b: b2 } : { a: a1, b: a2 };
-    const hY = h.a.y;
-    const hXMin = Math.min(h.a.x, h.b.x);
-    const hXMax = Math.max(h.a.x, h.b.x);
-    const vX = v.a.x;
-    const vYMin = Math.min(v.a.y, v.b.y);
-    const vYMax = Math.max(v.a.y, v.b.y);
-    return (
-      vX > hXMin + EPS_LOCAL &&
-      vX < hXMax - EPS_LOCAL &&
-      hY > vYMin + EPS_LOCAL &&
-      hY < vYMax - EPS_LOCAL
-    );
-  };
-
   const segmentsFor = (edge: Edge, points: PointLite[]): SegmentLite[] => {
-    const result: SegmentLite[] = [];
-    for (let i = 0; i < points.length - 1; i++) {
-      const a = points[i];
-      const b = points[i + 1];
-      const horizontal = isHorizontalSegment(a, b);
-      const vertical = isVerticalSegment(a, b);
-      if (!horizontal && !vertical) {
-        continue;
-      }
-      result.push({
-        edge,
-        index: i,
-        a,
-        b,
-        horizontal,
-        vertical,
-        interior: i >= 1 && i <= points.length - 3,
-      });
-    }
-    return result;
+    return orthogonalSegmentsForPoints(points, EPS_LOCAL).map((segment) => ({
+      ...segment,
+      edge,
+      interior: segment.index >= 1 && segment.index <= points.length - 3,
+    }));
   };
 
   const allSegments = (): SegmentLite[] => {
@@ -174,11 +125,12 @@ export function nudgeSharedInteriorSubpaths(edges: Edge[], nodeByIdMap: Map<stri
             return false;
           }
           if (
-            segmentsCrossStrict(
+            orthogonalSegmentsStrictlyCross(
               candidateSegment.a,
               candidateSegment.b,
               otherSegment.a,
-              otherSegment.b
+              otherSegment.b,
+              EPS_LOCAL
             )
           ) {
             return false;
