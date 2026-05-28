@@ -26,11 +26,10 @@ describe('createEdgeLabelNodes', () => {
     const data = createTestLayoutData(nodes, edges);
     const result = createEdgeLabelNodes(data);
 
-    expect(result.data.nodes).toHaveLength(2);
-    expect(result.data.edges).toHaveLength(1);
-    expect(result.labelNodeMap.size).toBe(0);
+    expect(result.nodes).toHaveLength(2);
+    expect(result.edges).toHaveLength(1);
     // Original edge must not be stamped with a labelNodeId.
-    expect((result.data.edges[0] as Edge & { labelNodeId?: string }).labelNodeId).toBeUndefined();
+    expect((result.edges[0] as Edge & { labelNodeId?: string }).labelNodeId).toBeUndefined();
   });
 
   it('should create a label node and layout-only virtual edges for a labelled edge', () => {
@@ -47,9 +46,9 @@ describe('createEdgeLabelNodes', () => {
     const result = createEdgeLabelNodes(data);
 
     // Should have 4 nodes: A, B, lane1, and the label node
-    expect(result.data.nodes).toHaveLength(4);
+    expect(result.nodes).toHaveLength(4);
 
-    const labelNode = result.data.nodes.find((n) => n.isEdgeLabel);
+    const labelNode = result.nodes.find((n) => n.isEdgeLabel);
     expect(labelNode).toBeDefined();
     expect(labelNode?.id).toBe('edge-label-A-B-e1');
     expect(labelNode?.label).toBe('my label');
@@ -62,9 +61,9 @@ describe('createEdgeLabelNodes', () => {
     // The original edge is preserved and stamped with `labelNodeId`. Two
     // layout-only virtual edges are appended so Sugiyama can layer the
     // label between source and target.
-    expect(result.data.edges).toHaveLength(3);
+    expect(result.edges).toHaveLength(3);
 
-    const original = result.data.edges.find((e) => e.id === 'e1');
+    const original = result.edges.find((e) => e.id === 'e1');
     expect(original).toBeDefined();
     expect((original as Edge & { labelNodeId?: string }).labelNodeId).toBe('edge-label-A-B-e1');
     expect((original as Edge & { isLayoutOnly?: boolean }).isLayoutOnly).toBeUndefined();
@@ -74,13 +73,13 @@ describe('createEdgeLabelNodes', () => {
     expect(original?.end).toBe('B');
     expect(original?.label).toBeUndefined();
 
-    const toLabelVirtual = result.data.edges.find((e) => e.id === 'e1-to-label');
+    const toLabelVirtual = result.edges.find((e) => e.id === 'e1-to-label');
     expect(toLabelVirtual).toBeDefined();
     expect(toLabelVirtual?.start).toBe('A');
     expect(toLabelVirtual?.end).toBe('edge-label-A-B-e1');
     expect((toLabelVirtual as Edge & { isLayoutOnly?: boolean }).isLayoutOnly).toBe(true);
 
-    const fromLabelVirtual = result.data.edges.find((e) => e.id === 'e1-from-label');
+    const fromLabelVirtual = result.edges.find((e) => e.id === 'e1-from-label');
     expect(fromLabelVirtual).toBeDefined();
     expect(fromLabelVirtual?.start).toBe('edge-label-A-B-e1');
     expect(fromLabelVirtual?.end).toBe('B');
@@ -102,16 +101,15 @@ describe('createEdgeLabelNodes', () => {
     const result = createEdgeLabelNodes(data);
 
     // Should have 5 nodes: A, B, C, and 2 label nodes
-    expect(result.data.nodes).toHaveLength(5);
+    expect(result.nodes).toHaveLength(5);
 
-    const labelNodes = result.data.nodes.filter((n) => n.isEdgeLabel);
+    const labelNodes = result.nodes.filter((n) => n.isEdgeLabel);
     expect(labelNodes).toHaveLength(2);
 
     // Should have 6 edges: 2 originals + 2 × 2 layout-only virtual edges
-    expect(result.data.edges).toHaveLength(6);
-    expect(result.labelNodeMap.size).toBe(2);
+    expect(result.edges).toHaveLength(6);
 
-    const layoutOnly = result.data.edges.filter(
+    const layoutOnly = result.edges.filter(
       (e) => (e as Edge & { isLayoutOnly?: boolean }).isLayoutOnly === true
     );
     expect(layoutOnly).toHaveLength(4);
@@ -137,7 +135,7 @@ describe('createEdgeLabelNodes', () => {
     const data = createTestLayoutData(nodes, edges);
     const result = createEdgeLabelNodes(data);
 
-    const original = result.data.edges.find((e) => e.id === 'e1');
+    const original = result.edges.find((e) => e.id === 'e1');
     expect(original).toBeDefined();
     // Original arrow types are preserved — routing uses the single polyline.
     expect(original?.arrowTypeStart).toBe('arrow_circle');
@@ -166,8 +164,7 @@ describe('createEdgeLabelNodes', () => {
 
     // Should not create any label nodes or virtual edges for an already-
     // stamped edge (guards against double-processing).
-    expect(result.data.nodes).toHaveLength(2);
-    expect(result.data.edges).toHaveLength(1);
-    expect(result.labelNodeMap.size).toBe(0);
+    expect(result.nodes).toHaveLength(2);
+    expect(result.edges).toHaveLength(1);
   });
 });

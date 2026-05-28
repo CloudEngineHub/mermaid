@@ -18,12 +18,6 @@ import type { LayoutData, Node, Edge, NonClusterNode } from '../../types.js';
 import { log } from '../../../logger.js';
 
 const EDGE_LABEL_LOG_PREFIX = '[EdgeLabelNodes]';
-export interface EdgeLabelTransformResult {
-  /** The transformed layout data with label nodes added */
-  data: LayoutData;
-  /** Map from original edge ID to the label node ID (if created) */
-  labelNodeMap: Map<string, string>;
-}
 
 /**
  * Transforms edges with labels into label nodes + layout-only virtual edges.
@@ -39,11 +33,9 @@ export interface EdgeLabelTransformResult {
  *    node's center).
  *
  * @param data - The layout data to transform
- * @returns The transformed result with label nodes and mappings
+ * @returns The transformed layout data with label nodes and virtual edges
  */
-export function createEdgeLabelNodes(data: LayoutData): EdgeLabelTransformResult {
-  const labelNodeMap = new Map<string, string>();
-
+export function createEdgeLabelNodes(data: LayoutData): LayoutData {
   const nodesToAdd: NonClusterNode[] = [];
   const layoutOnlyEdges: Edge[] = [];
 
@@ -97,7 +89,6 @@ export function createEdgeLabelNodes(data: LayoutData): EdgeLabelTransformResult
     };
 
     nodesToAdd.push(labelNode);
-    labelNodeMap.set(edge.id, labelNodeId);
 
     // Stamp the original edge so the router can decompose routing through the
     // label's center when producing a single polyline.
@@ -134,11 +125,8 @@ export function createEdgeLabelNodes(data: LayoutData): EdgeLabelTransformResult
   const newEdges = [...data.edges, ...layoutOnlyEdges];
 
   return {
-    data: {
-      ...data,
-      nodes: newNodes,
-      edges: newEdges,
-    },
-    labelNodeMap,
+    ...data,
+    nodes: newNodes,
+    edges: newEdges,
   };
 }

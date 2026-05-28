@@ -107,8 +107,7 @@ async function runSwimlanes(fixture: SizesFixture): Promise<LayoutData> {
   const parsed = await parseLayout();
   applySizes(parsed, fixture);
 
-  const { data } = createEdgeLabelNodes(parsed);
-  const layout = data;
+  const layout = createEdgeLabelNodes(parsed);
   (layout as LayoutData & { direction?: string }).direction = (
     parsed as LayoutData & { direction?: string }
   ).direction;

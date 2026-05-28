@@ -145,6 +145,13 @@ function makeKnsv3Layout(direction: 'LR' | 'TB' = 'LR'): LayoutData {
   return layout;
 }
 
+function labelNodeIdForEdge(layout: LayoutData, edgeId: string): string | undefined {
+  const edge = layout.edges?.find((edge) => edge.id === edgeId) as
+    | (Edge & { labelNodeId?: string })
+    | undefined;
+  return edge?.labelNodeId;
+}
+
 function runKnsv3SwimlanesLR(): {
   layout: LayoutData;
   labelIds: { ijLabelId?: string; ikLabelId?: string };
@@ -152,11 +159,10 @@ function runKnsv3SwimlanesLR(): {
   const baseLayout = makeKnsv3Layout('LR');
 
   // Apply edge-label transformation so that labels become nodes inside swimlanes
-  const { data, labelNodeMap } = createEdgeLabelNodes(baseLayout);
-  const layout = data;
+  const layout = createEdgeLabelNodes(baseLayout);
 
-  const ijLabelId = labelNodeMap.get('eI-J');
-  const ikLabelId = labelNodeMap.get('eI-K');
+  const ijLabelId = labelNodeIdForEdge(layout, 'eI-J');
+  const ikLabelId = labelNodeIdForEdge(layout, 'eI-K');
 
   // Give the I->J label node a tall size so it becomes a real obstacle, similar to knsv3.html
   if (ijLabelId) {

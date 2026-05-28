@@ -48,8 +48,7 @@ export function runSwimlanesDdlt(layout: LayoutData, sizes: SizesFixture): void 
   prepareLayoutForSwimlanes(layout);
   applyFixtureContentSizesStrict(layout, sizes);
 
-  const { data } = createEdgeLabelNodes(layout);
-  const out = data;
+  const out = createEdgeLabelNodes(layout);
   (out as LayoutData & { direction?: string }).direction = (
     layout as LayoutData & { direction?: string }
   ).direction;

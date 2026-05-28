@@ -22,7 +22,7 @@ export async function render(data4Layout: LayoutData, svg: SVG) {
 
   prepareLayoutForSwimlanes(data4Layout);
 
-  const { data: transformedData } = createEdgeLabelNodes(data4Layout);
+  const transformedData = createEdgeLabelNodes(data4Layout);
   data4Layout.nodes = transformedData.nodes;
   data4Layout.edges = transformedData.edges;
 

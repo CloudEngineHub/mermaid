@@ -132,17 +132,23 @@ function sizeLabelNode(nodeId: string, layout: LayoutData, width: number, height
   }
 }
 
+function labelNodeIdForEdge(layout: LayoutData, edgeId: string): string | undefined {
+  const edge = layout.edges?.find((edge) => edge.id === edgeId) as
+    | (Edge & { labelNodeId?: string })
+    | undefined;
+  return edge?.labelNodeId;
+}
+
 function runHoESwimlanesLR(): { layout: LayoutData; labelNodeId?: string } {
   const baseLayout = makeHoELayout('LR');
-  const { data, labelNodeMap } = createEdgeLabelNodes(baseLayout);
-  const layout = data;
+  const layout = createEdgeLabelNodes(baseLayout);
 
-  sizeLabelNode(labelNodeMap.get('eHE_CA-HE_Ans') ?? '', layout, 42, 22);
-  sizeLabelNode(labelNodeMap.get('eHE_CA-HE_Inv') ?? '', layout, 38, 22);
-  sizeLabelNode(labelNodeMap.get('eTL_CA-TL_Ans') ?? '', layout, 42, 22);
-  sizeLabelNode(labelNodeMap.get('eB-TL_CA') ?? '', layout, 42, 22);
-  sizeLabelNode(labelNodeMap.get('eB-HE_CA') ?? '', layout, 38, 22);
-  sizeLabelNode(labelNodeMap.get('eTL_CA-HE_CA') ?? '', layout, 38, 22);
+  sizeLabelNode(labelNodeIdForEdge(layout, 'eHE_CA-HE_Ans') ?? '', layout, 42, 22);
+  sizeLabelNode(labelNodeIdForEdge(layout, 'eHE_CA-HE_Inv') ?? '', layout, 38, 22);
+  sizeLabelNode(labelNodeIdForEdge(layout, 'eTL_CA-TL_Ans') ?? '', layout, 42, 22);
+  sizeLabelNode(labelNodeIdForEdge(layout, 'eB-TL_CA') ?? '', layout, 42, 22);
+  sizeLabelNode(labelNodeIdForEdge(layout, 'eB-HE_CA') ?? '', layout, 38, 22);
+  sizeLabelNode(labelNodeIdForEdge(layout, 'eTL_CA-HE_CA') ?? '', layout, 38, 22);
 
   const g = toGraphView(layout);
   const nodeGap = layout.config.flowchart?.nodeSpacing ?? 40;
@@ -170,7 +176,7 @@ function runHoESwimlanesLR(): { layout: LayoutData; labelNodeId?: string } {
   routeEdgesOrthogonal(layout, 'LR');
   applySwimlaneDirectionTransform(layout, 'LR');
 
-  return { layout, labelNodeId: labelNodeMap.get('eB-HE_CA') };
+  return { layout, labelNodeId: labelNodeIdForEdge(layout, 'eB-HE_CA') };
 }
 
 function hasZeroProgressOutAndBack(points: Point[]): boolean {
