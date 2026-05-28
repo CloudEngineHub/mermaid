@@ -1,11 +1,8 @@
 import type { LayoutData } from '../../../types.js';
+import { segmentBoundsOverlapRect, type RectBounds } from './geometry.js';
 
-interface LabelRect {
+interface LabelRect extends RectBounds {
   nodeId: string;
-  left: number;
-  right: number;
-  top: number;
-  bottom: number;
 }
 
 interface LabelEdgeFixCandidate {
@@ -16,23 +13,6 @@ interface LabelEdgeFixCandidate {
 }
 
 const EPS = 1e-3;
-
-function segmentIntersectsRect(
-  p1: { x: number; y: number },
-  p2: { x: number; y: number },
-  rect: LabelRect,
-  epsilon: number
-): boolean {
-  const segMinX = Math.min(p1.x, p2.x);
-  const segMaxX = Math.max(p1.x, p2.x);
-  const segMinY = Math.min(p1.y, p2.y);
-  const segMaxY = Math.max(p1.y, p2.y);
-
-  const intersectX = segMaxX > rect.left + epsilon && segMinX < rect.right - epsilon;
-  const intersectY = segMaxY > rect.top + epsilon && segMinY < rect.bottom - epsilon;
-
-  return intersectX && intersectY;
-}
 
 function rerouteSubpathAroundLabel(
   candidate: LabelEdgeFixCandidate,
@@ -181,7 +161,7 @@ function rerouteSubpathAroundLabel(
     // Check that the new subpath does not intersect the label.
     let ok = true;
     for (let i = 0; i < newSub.length - 1; i++) {
-      if (segmentIntersectsRect(newSub[i], newSub[i + 1], label, epsilon)) {
+      if (segmentBoundsOverlapRect(newSub[i], newSub[i + 1], label, -epsilon)) {
         ok = false;
         break;
       }
@@ -273,7 +253,7 @@ export function resolveEdgeNodeIntersections(layout: LayoutData): void {
 
           const intersectingSegIndices: number[] = [];
           for (let i = 0; i < points.length - 1; i++) {
-            if (segmentIntersectsRect(points[i], points[i + 1], rect, epsilon)) {
+            if (segmentBoundsOverlapRect(points[i], points[i + 1], rect, -epsilon)) {
               intersectingSegIndices.push(i);
             }
           }

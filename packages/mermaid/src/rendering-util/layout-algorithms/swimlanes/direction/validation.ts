@@ -1,14 +1,11 @@
 import type { LayoutData } from '../../../types.js';
 import { log } from '../../../../logger.js';
+import { segmentBoundsOverlapRect, type RectBounds } from './geometry.js';
 
 const SWIMLANE_DIR_LOG_PREFIX = 'SWIMLANE_DIR';
 
-interface LabelRect {
+interface LabelRect extends RectBounds {
   nodeId: string;
-  left: number;
-  right: number;
-  top: number;
-  bottom: number;
 }
 
 export interface ValidationIssue {
@@ -17,23 +14,6 @@ export interface ValidationIssue {
   /** Second edge ID (for crossings) or node ID (for overlaps) */
   targetId: string;
   detail: string;
-}
-
-function segmentIntersectsRect(
-  p1: { x: number; y: number },
-  p2: { x: number; y: number },
-  rect: LabelRect,
-  epsilon: number
-): boolean {
-  const segMinX = Math.min(p1.x, p2.x);
-  const segMaxX = Math.max(p1.x, p2.x);
-  const segMinY = Math.min(p1.y, p2.y);
-  const segMaxY = Math.max(p1.y, p2.y);
-
-  const intersectX = segMaxX > rect.left + epsilon && segMinX < rect.right - epsilon;
-  const intersectY = segMaxY > rect.top + epsilon && segMinY < rect.bottom - epsilon;
-
-  return intersectX && intersectY;
 }
 
 /**
@@ -124,7 +104,7 @@ export function validateSwimlanesLayout(layout: LayoutData): ValidationIssue[] {
         continue;
       }
       for (let i = 0; i < points.length - 1; i++) {
-        if (segmentIntersectsRect(points[i], points[i + 1], rect, epsilon)) {
+        if (segmentBoundsOverlapRect(points[i], points[i + 1], rect, -epsilon)) {
           issues.push({
             type: 'edge-node-overlap',
             edgeId: edge.id ?? `${edgeStart}->${edgeEnd}`,
