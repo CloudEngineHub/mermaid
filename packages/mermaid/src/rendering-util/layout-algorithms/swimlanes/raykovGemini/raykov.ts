@@ -773,8 +773,8 @@ export function routeEdgesOrthogonal(data: LayoutData, direction?: string): Layo
     // is not aligned orthogonally, it will produce a diagonal intersection instead of the
     // orthogonal port we computed.
     let srcHandleWaypoints: Point[] = [];
-    const srcExcludeIds = [e.start ?? '', e.end ?? ''];
-    const srcCheck = isPointInObstacle(pSrcAnchor, srcExcludeIds);
+    const endpointIds = [e.start, e.end];
+    const srcCheck = isPointInObstacle(pSrcAnchor, endpointIds);
     if (srcCheck.inside && srcCheck.obstacle) {
       const obs = srcCheck.obstacle;
       if (srcPortIsVertical) {
@@ -825,8 +825,7 @@ export function routeEdgesOrthogonal(data: LayoutData, direction?: string): Layo
     // Push destination anchor out if it's inside an obstacle
     // Same logic as source: ensure orthogonal waypoints for proper intersection
     let dstHandleWaypoints: Point[] = [];
-    const dstExcludeIds = [e.start ?? '', e.end ?? ''];
-    const dstCheck = isPointInObstacle(pDstAnchor, dstExcludeIds);
+    const dstCheck = isPointInObstacle(pDstAnchor, endpointIds);
     if (dstCheck.inside && dstCheck.obstacle) {
       const obs = dstCheck.obstacle;
       if (dstPortIsVertical) {
