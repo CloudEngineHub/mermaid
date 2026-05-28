@@ -5,7 +5,6 @@ export interface CoordOptions {
   layerGap?: number; // vertical distance between layers
   nodeGap?: number; // horizontal gap between siblings inside a lane
   laneGap?: number; // horizontal gap between lanes (clusters)
-  straightenLongEdges?: boolean; // align dummy chains
   direction?: 'TB' | 'LR' | 'BT' | 'RL'; // layout direction for proper spacing
 }
 
@@ -17,7 +16,6 @@ export function assignCoordinates(
   const layerGap = opts?.layerGap ?? COORDINATES.DEFAULT_LAYER_GAP;
   const nodeGap = opts?.nodeGap ?? COORDINATES.DEFAULT_NODE_GAP;
   const laneGap = opts?.laneGap ?? nodeGap * 2;
-  const straighten = opts?.straightenLongEdges ?? COORDINATES.DEFAULT_STRAIGHTEN_LONG_EDGES;
   const direction = opts?.direction ?? 'TB';
   const isHorizontal = direction === 'LR' || direction === 'RL';
 
@@ -197,43 +195,38 @@ export function assignCoordinates(
     yOffset += layerH + layerGap + extraGap;
   }
 
-  if (straighten) {
-    // Align dummy chains for each original edge: set dummy x to midpoint between src and dst
-    // Group edges by original ref id
-    const byRef = new Map<string, EdgeRef[]>();
-    for (const e of gWithDummies.edges) {
-      const rid = e.ref.id;
-      if (!byRef.has(rid)) {
-        byRef.set(rid, []);
-      }
-      byRef.get(rid)!.push(e);
+  // Align dummy chains for each original edge: set dummy x to midpoint between src and dst.
+  const byRef = new Map<string, EdgeRef[]>();
+  for (const e of gWithDummies.edges) {
+    const rid = e.ref.id;
+    if (!byRef.has(rid)) {
+      byRef.set(rid, []);
     }
-    for (const [, chainEdges] of byRef) {
-      if (chainEdges.length === 0) {
+    byRef.get(rid)!.push(e);
+  }
+  for (const [, chainEdges] of byRef) {
+    if (chainEdges.length === 0) {
+      continue;
+    }
+    const ref = chainEdges[0].ref; // original edge
+    const src = ref.start!;
+    const dst = ref.end!;
+    if (src == null || dst == null) {
+      continue;
+    }
+    const midX = Math.round(((x[src] ?? 0) + (x[dst] ?? 0)) / 2);
+    const involved = new Set<NodeId>();
+    for (const e of chainEdges) {
+      involved.add(e.src);
+      involved.add(e.dst);
+    }
+    for (const vid of involved) {
+      if (vid === src || vid === dst) {
         continue;
       }
-      const ref = chainEdges[0].ref; // original edge
-      const src = ref.start!;
-      const dst = ref.end!;
-      if (src == null || dst == null) {
-        continue;
-      }
-      const midX = Math.round(((x[src] ?? 0) + (x[dst] ?? 0)) / 2);
-      // Find nodes involved in this chain
-      const involved = new Set<NodeId>();
-      for (const e of chainEdges) {
-        involved.add(e.src);
-        involved.add(e.dst);
-      }
-      // Set dummy nodes only; keep endpoints as-is
-      for (const vid of involved) {
-        if (vid === src || vid === dst) {
-          continue;
-        }
-        const node = gWithDummies.nodeById.get(vid) as any;
-        if (node?.isDummy) {
-          x[vid] = midX;
-        }
+      const node = gWithDummies.nodeById.get(vid) as any;
+      if (node?.isDummy) {
+        x[vid] = midX;
       }
     }
   }

@@ -61,7 +61,6 @@ describe('Phase 4 — Coordinate Assignment', () => {
     const coords0 = assignCoordinates(ordered, graphWithDummies, {
       nodeGap: 40,
       layerGap: 100,
-      straightenLongEdges: true,
     });
     const coords = mergeDummies(coords0, graphWithDummies, g);
 

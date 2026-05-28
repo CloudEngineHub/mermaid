@@ -192,7 +192,6 @@ function runKnsv3SwimlanesLR(): {
   const { ordered, coordinates } = sugiyamaLayout(g, {
     nodeGap,
     layerGap,
-    straightenLongEdges: true,
     ignoreCrossLaneEdges: true,
     optimizeRanksByCrossings: true,
     direction: 'LR',

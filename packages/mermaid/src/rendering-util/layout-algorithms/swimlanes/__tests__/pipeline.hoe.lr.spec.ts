@@ -157,7 +157,6 @@ function runHoESwimlanesLR(): { layout: LayoutData; labelNodeId?: string } {
   const { ordered, coordinates } = sugiyamaLayout(g, {
     nodeGap,
     layerGap,
-    straightenLongEdges: true,
     ignoreCrossLaneEdges: true,
     optimizeRanksByCrossings: true,
     direction: 'LR',

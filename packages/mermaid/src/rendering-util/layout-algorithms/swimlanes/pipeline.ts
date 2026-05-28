@@ -19,7 +19,6 @@ export interface LayoutOptions {
   // Coordinates
   layerGap?: number;
   nodeGap?: number;
-  straightenLongEdges?: boolean;
   // Direction (for proper spacing calculation)
   direction?: 'TB' | 'LR' | 'BT' | 'RL';
 }
@@ -60,7 +59,6 @@ export function sugiyamaLayout(g: Graph, opts?: LayoutOptions): LayoutResult {
   const coords0 = assignCoordinates(ordered, graphWithDummies, {
     layerGap: opts?.layerGap,
     nodeGap: opts?.nodeGap,
-    straightenLongEdges: opts?.straightenLongEdges ?? true,
     direction: opts?.direction,
   });
   const coordinates = mergeDummies(coords0, graphWithDummies, g);

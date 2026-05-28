@@ -50,7 +50,6 @@ function runSwimlanesPipeline(direction?: string): LayoutData {
   const { ordered, coordinates } = sugiyamaLayout(g, {
     nodeGap,
     layerGap,
-    straightenLongEdges: true,
   });
 
   writeBackToLayoutData(g, ordered, coordinates, { nodeGap, layerGap });

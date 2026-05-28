@@ -128,7 +128,6 @@ async function runSwimlanes(fixture: SizesFixture): Promise<LayoutData> {
   const { ordered, coordinates } = sugiyamaLayout(g, {
     nodeGap,
     layerGap,
-    straightenLongEdges: true,
     ignoreCrossLaneEdges: true,
     optimizeRanksByCrossings: true,
     direction,

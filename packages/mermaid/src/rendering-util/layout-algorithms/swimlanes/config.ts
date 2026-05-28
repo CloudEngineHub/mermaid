@@ -45,7 +45,4 @@ export const COORDINATES = {
 
   /** Default horizontal gap between nodes (px) */
   DEFAULT_NODE_GAP: 40,
-
-  /** Whether to straighten long edges by default */
-  DEFAULT_STRAIGHTEN_LONG_EDGES: true,
 } as const;
