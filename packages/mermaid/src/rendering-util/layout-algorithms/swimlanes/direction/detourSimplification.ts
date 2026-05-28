@@ -7,6 +7,8 @@ import {
   orthogonalSegmentsCross,
   overlapLength,
   portForRectSide,
+  sameX,
+  sameY,
   segmentHitsAnyRect,
 } from './geometry.js';
 import type { RectSide } from './geometry.js';
@@ -23,8 +25,8 @@ export function simplifyDetouredEdges(edges: any[], nodes: any[]): void {
       const a = pts[i - 1];
       const b = pts[i];
       const c = pts[i + 1];
-      const abH = Math.abs(a.y - b.y) < EPS;
-      const bcH = Math.abs(b.y - c.y) < EPS;
+      const abH = sameY(a, b, EPS);
+      const bcH = sameY(b, c, EPS);
       if (abH !== bcH) {
         bends++;
       }
@@ -144,8 +146,8 @@ export function simplifyDetouredEdges(edges: any[], nodes: any[]): void {
       for (let i = 0; i < path.length - 1; i++) {
         const a = path[i];
         const b = path[i + 1];
-        const aH = Math.abs(a.y - b.y) < EPS;
-        const aV = Math.abs(a.x - b.x) < EPS;
+        const aH = sameY(a, b, EPS);
+        const aV = sameX(a, b, EPS);
         for (let j = 0; j < otherPts.length - 1; j++) {
           const c = otherPts[j];
           const d = otherPts[j + 1];
@@ -153,13 +155,13 @@ export function simplifyDetouredEdges(edges: any[], nodes: any[]): void {
             conflicts++;
             continue;
           }
-          const cH = Math.abs(c.y - d.y) < EPS;
-          const cV = Math.abs(c.x - d.x) < EPS;
-          if (aH && cH && Math.abs(a.y - c.y) < EPS) {
+          const cH = sameY(c, d, EPS);
+          const cV = sameX(c, d, EPS);
+          if (aH && cH && sameY(a, c, EPS)) {
             if (overlapLength(a.x, b.x, c.x, d.x) >= MIN_SHARED) {
               conflicts++;
             }
-          } else if (aV && cV && Math.abs(a.x - c.x) < EPS) {
+          } else if (aV && cV && sameX(a, c, EPS)) {
             if (overlapLength(a.y, b.y, c.y, d.y) >= MIN_SHARED) {
               conflicts++;
             }
@@ -221,10 +223,9 @@ export function simplifyDetouredEdges(edges: any[], nodes: any[]): void {
   }
   const faceClaims = new Map<string, FaceClaim[]>();
   const addFaceClaim = (nodeId: string, side: RectSide, edgeId: string) => {
-    if (!faceClaims.has(nodeId)) {
-      faceClaims.set(nodeId, []);
-    }
-    faceClaims.get(nodeId)!.push({ side, edgeId });
+    const claims = faceClaims.get(nodeId) ?? [];
+    claims.push({ side, edgeId });
+    faceClaims.set(nodeId, claims);
   };
   for (const e of edges) {
     if ((e as { isLayoutOnly?: boolean }).isLayoutOnly) {
@@ -252,19 +253,9 @@ export function simplifyDetouredEdges(edges: any[], nodes: any[]): void {
   }
 
   const faceIsClaimed = (nodeId: string, side: RectSide, ignoreEdgeId: string): boolean => {
-    const claims = faceClaims.get(nodeId);
-    if (!claims) {
-      return false;
-    }
-    for (const c of claims) {
-      if (c.edgeId === ignoreEdgeId) {
-        continue;
-      }
-      if (c.side === side) {
-        return true;
-      }
-    }
-    return false;
+    return (
+      faceClaims.get(nodeId)?.some((c) => c.edgeId !== ignoreEdgeId && c.side === side) ?? false
+    );
   };
 
   for (const edge of edges) {
@@ -291,6 +282,7 @@ export function simplifyDetouredEdges(edges: any[], nodes: any[]): void {
     }
     const edgeId = (edge as { id?: string }).id ?? '';
     const currentCrossingConflicts = pathConflictCount(pts, edge, true);
+    const currentNonIncidentConflicts = pathConflictCount(pts, edge);
 
     let bestPath: { x: number; y: number }[] | undefined;
     let bestCrossingConflicts = currentCrossingConflicts;
@@ -326,7 +318,7 @@ export function simplifyDetouredEdges(edges: any[], nodes: any[]): void {
             continue;
           }
 
-          if (pathConflictCount(path, edge) > pathConflictCount(pts, edge)) {
+          if (pathConflictCount(path, edge) > currentNonIncidentConflicts) {
             continue;
           }
           if (pathBends < bestBends) {
