@@ -220,6 +220,80 @@ export function portForRectSide(
   }
 }
 
+function isHorizontalRectSide(side: RectSide): boolean {
+  return side === 'left' || side === 'right';
+}
+
+export function buildOrthogonalPortPath(
+  src: Point,
+  srcSide: RectSide,
+  dst: Point,
+  dstSide: RectSide,
+  anchor: number,
+  epsilon = EPS
+): Point[] | undefined {
+  const srcH = isHorizontalRectSide(srcSide);
+  const dstH = isHorizontalRectSide(dstSide);
+
+  if (srcH && dstH) {
+    const opposingDir =
+      (srcSide === 'right' && dstSide === 'left' && src.x < dst.x) ||
+      (srcSide === 'left' && dstSide === 'right' && src.x > dst.x);
+    if (opposingDir) {
+      if (Math.abs(src.y - dst.y) < epsilon) {
+        return [src, dst];
+      }
+      const midX = (src.x + dst.x) / 2;
+      return [src, { x: midX, y: src.y }, { x: midX, y: dst.y }, dst];
+    }
+    if (srcSide === dstSide) {
+      if (Math.abs(src.y - dst.y) < epsilon) {
+        return undefined;
+      }
+      const intX =
+        srcSide === 'left' ? Math.min(src.x, dst.x) - anchor : Math.max(src.x, dst.x) + anchor;
+      return [src, { x: intX, y: src.y }, { x: intX, y: dst.y }, dst];
+    }
+    return undefined;
+  }
+
+  if (!srcH && !dstH) {
+    if (srcSide === dstSide) {
+      if (Math.abs(src.x - dst.x) < epsilon) {
+        return undefined;
+      }
+      const intY =
+        srcSide === 'top' ? Math.min(src.y, dst.y) - anchor : Math.max(src.y, dst.y) + anchor;
+      return [src, { x: src.x, y: intY }, { x: dst.x, y: intY }, dst];
+    }
+    const sameDir =
+      (srcSide === 'bottom' && dstSide === 'top' && src.y < dst.y) ||
+      (srcSide === 'top' && dstSide === 'bottom' && src.y > dst.y);
+    if (!sameDir) {
+      return undefined;
+    }
+    if (Math.abs(src.x - dst.x) < epsilon) {
+      return [src, dst];
+    }
+    const midY = (src.y + dst.y) / 2;
+    return [src, { x: src.x, y: midY }, { x: dst.x, y: midY }, dst];
+  }
+
+  if (srcH && !dstH) {
+    const sameDirSrc =
+      (srcSide === 'right' && dst.x > src.x) || (srcSide === 'left' && dst.x < src.x);
+    const sameDirDst =
+      (dstSide === 'top' && src.y < dst.y) || (dstSide === 'bottom' && src.y > dst.y);
+    return sameDirSrc && sameDirDst ? [src, { x: dst.x, y: src.y }, dst] : undefined;
+  }
+
+  const sameDirSrc =
+    (srcSide === 'bottom' && dst.y > src.y) || (srcSide === 'top' && dst.y < src.y);
+  const sameDirDst =
+    (dstSide === 'left' && src.x < dst.x) || (dstSide === 'right' && src.x > dst.x);
+  return sameDirSrc && sameDirDst ? [src, { x: src.x, y: dst.y }, dst] : undefined;
+}
+
 export function collectRealNodeBounds(nodes: Iterable<NodeBoundsInput>): {
   nodeInfoById: Map<string, NodeBoundsInfo>;
   realNodeRects: RectEntry[];

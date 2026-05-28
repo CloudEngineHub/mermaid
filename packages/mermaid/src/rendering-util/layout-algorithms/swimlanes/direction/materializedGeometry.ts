@@ -4,6 +4,7 @@ import {
   dedupeConsecutivePoints,
   isHorizontalSegment,
   isVerticalSegment,
+  buildOrthogonalPortPath,
   overlapLength,
   orthogonalSegmentsForPoints,
   orthogonalSegmentsStrictlyCross,
@@ -656,60 +657,24 @@ export function resolveRenderedOrthogonalCrossings(
     dstSide: RectSide
   ): PointLite[][] => {
     const candidates: PointLite[][] = [];
-    const srcH = srcSide === 'left' || srcSide === 'right';
-    const dstH = dstSide === 'left' || dstSide === 'right';
+    const base = buildOrthogonalPortPath(src, srcSide, dst, dstSide, ANCHOR, EPS_LOCAL);
+    if (base) {
+      candidates.push(base);
+    }
 
-    if (srcH && dstH) {
-      const opposingDir =
-        (srcSide === 'right' && dstSide === 'left' && src.x < dst.x) ||
-        (srcSide === 'left' && dstSide === 'right' && src.x > dst.x);
-      if (opposingDir) {
-        candidates.push(
-          Math.abs(src.y - dst.y) < EPS_LOCAL
-            ? [src, dst]
-            : [src, { x: (src.x + dst.x) / 2, y: src.y }, { x: (src.x + dst.x) / 2, y: dst.y }, dst]
-        );
-      }
-      if (srcSide === dstSide) {
+    if (srcSide === dstSide) {
+      if (srcSide === 'left' || srcSide === 'right') {
         const localX =
           srcSide === 'left' ? Math.min(src.x, dst.x) - ANCHOR : Math.max(src.x, dst.x) + ANCHOR;
         const globalX = srcSide === 'left' ? outsideTracks.left : outsideTracks.right;
         candidates.push([src, { x: localX, y: src.y }, { x: localX, y: dst.y }, dst]);
         candidates.push([src, { x: globalX, y: src.y }, { x: globalX, y: dst.y }, dst]);
-      }
-    } else if (!srcH && !dstH) {
-      if (srcSide === dstSide) {
+      } else {
         const localY =
           srcSide === 'top' ? Math.min(src.y, dst.y) - ANCHOR : Math.max(src.y, dst.y) + ANCHOR;
         const globalY = srcSide === 'top' ? outsideTracks.top : outsideTracks.bottom;
         candidates.push([src, { x: src.x, y: localY }, { x: dst.x, y: localY }, dst]);
         candidates.push([src, { x: src.x, y: globalY }, { x: dst.x, y: globalY }, dst]);
-      }
-      const sameDir =
-        (srcSide === 'bottom' && dstSide === 'top' && src.y < dst.y) ||
-        (srcSide === 'top' && dstSide === 'bottom' && src.y > dst.y);
-      if (sameDir) {
-        candidates.push(
-          Math.abs(src.x - dst.x) < EPS_LOCAL
-            ? [src, dst]
-            : [src, { x: src.x, y: (src.y + dst.y) / 2 }, { x: dst.x, y: (src.y + dst.y) / 2 }, dst]
-        );
-      }
-    } else if (srcH && !dstH) {
-      const sameDirSrc =
-        (srcSide === 'right' && dst.x > src.x) || (srcSide === 'left' && dst.x < src.x);
-      const sameDirDst =
-        (dstSide === 'top' && src.y < dst.y) || (dstSide === 'bottom' && src.y > dst.y);
-      if (sameDirSrc && sameDirDst) {
-        candidates.push([src, { x: dst.x, y: src.y }, dst]);
-      }
-    } else {
-      const sameDirSrc =
-        (srcSide === 'bottom' && dst.y > src.y) || (srcSide === 'top' && dst.y < src.y);
-      const sameDirDst =
-        (dstSide === 'left' && src.x < dst.x) || (dstSide === 'right' && src.x > dst.x);
-      if (sameDirSrc && sameDirDst) {
-        candidates.push([src, { x: src.x, y: dst.y }, dst]);
       }
     }
 
