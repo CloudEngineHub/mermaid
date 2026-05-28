@@ -1,6 +1,6 @@
 import {
   orthogonalizePolyline,
-  rectFromCenterSize,
+  rectOfNodeBounds,
   samePoint,
   sameX,
   sameY,
@@ -14,17 +14,6 @@ const INSIDE_EPS = 0.5;
 type NodeRect = RectBounds;
 
 type BorderSide = 'top' | 'bottom' | 'left' | 'right';
-
-function rectOfNode(node: any): NodeRect | undefined {
-  const cx = node?.x ?? 0;
-  const cy = node?.y ?? 0;
-  const w = node?.width ?? 0;
-  const h = node?.height ?? 0;
-  if (w <= 0 || h <= 0) {
-    return undefined;
-  }
-  return rectFromCenterSize(cx, cy, w, h);
-}
 
 function strictlyInside(p: Point, r: NodeRect): boolean {
   return (
@@ -89,8 +78,8 @@ export function clipEdgeEndpointsToNodeBoundaries(edges: unknown[], nodeByIdMap:
     const dstId = (edge as { end?: string }).end;
     const src = srcId ? nodeByIdMap.get(srcId) : undefined;
     const dst = dstId ? nodeByIdMap.get(dstId) : undefined;
-    const srcRect = src ? rectOfNode(src) : undefined;
-    const dstRect = dst ? rectOfNode(dst) : undefined;
+    const srcRect = src ? rectOfNodeBounds(src) : undefined;
+    const dstRect = dst ? rectOfNodeBounds(dst) : undefined;
 
     let next = [...pts];
     if (srcRect) {
@@ -247,8 +236,8 @@ export function prepareEdgeEndpointsForRenderer(edges: unknown[], nodeByIdMap: M
     const dstId = (edge as { end?: string }).end;
     const src = srcId ? nodeByIdMap.get(srcId) : undefined;
     const dst = dstId ? nodeByIdMap.get(dstId) : undefined;
-    const srcRect = src ? rectOfNode(src) : undefined;
-    const dstRect = dst ? rectOfNode(dst) : undefined;
+    const srcRect = src ? rectOfNodeBounds(src) : undefined;
+    const dstRect = dst ? rectOfNodeBounds(dst) : undefined;
 
     const newPts = snapAndCollapseEndpoints(pts, srcRect, dstRect);
     const duplicated = [

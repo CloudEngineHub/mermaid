@@ -13,7 +13,7 @@ import {
   orthogonalSegmentsForPoints,
   orthogonalSegmentsStrictlyCross,
   portForRectSide,
-  rectFromCenterSize,
+  rectOfNodeBounds,
   segmentBoundsOverlapRect,
 } from './geometry.js';
 import type { OrthogonalSegment, Point, RectBounds, RectSide } from './geometry.js';
@@ -25,17 +25,6 @@ type PointLite = Point;
 type RectLite = RectBounds;
 
 type SegmentLite = OrthogonalSegment;
-
-const rectOfNode = (node: any): RectLite | undefined => {
-  const cx = (node as { x?: number }).x ?? 0;
-  const cy = (node as { y?: number }).y ?? 0;
-  const w = (node as { width?: number }).width ?? 0;
-  const h = (node as { height?: number }).height ?? 0;
-  if (w <= 0 || h <= 0) {
-    return undefined;
-  }
-  return rectFromCenterSize(cx, cy, w, h);
-};
 
 const sameAxisOverlap = (a: SegmentLite, b: SegmentLite): number => {
   if (a.horizontal && b.horizontal && sameY(a.a, b.a, 0.5)) {
@@ -102,7 +91,7 @@ export function separateSharedRenderedTerminalLanes(
 
     const nodeId = atStart ? (edge as { start?: string }).start : (edge as { end?: string }).end;
     const node = nodeId ? nodeByIdMap.get(nodeId) : undefined;
-    const rect = node ? rectOfNode(node) : undefined;
+    const rect = node ? rectOfNodeBounds(node) : undefined;
     if (!node || !nodeId || !rect) {
       return undefined;
     }
@@ -515,7 +504,7 @@ export function resolveRenderedOrthogonalCrossings(
     }
     const cx = (node as { x?: number }).x ?? 0;
     const cy = (node as { y?: number }).y ?? 0;
-    const rect = rectOfNode(node);
+    const rect = rectOfNodeBounds(node);
     if (!rect) {
       continue;
     }

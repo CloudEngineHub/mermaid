@@ -68,6 +68,13 @@ interface NodeBoundsInput {
   isEdgeLabel?: boolean;
 }
 
+interface RectNodeInput {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+}
+
 interface EdgeEndpointInput {
   start?: string;
   end?: string;
@@ -202,6 +209,17 @@ export function rectFromCenterSize(
     top: cy - height / 2,
     bottom: cy + height / 2,
   };
+}
+
+export function rectOfNodeBounds(node: RectNodeInput): RectBounds | undefined {
+  const cx = node.x ?? 0;
+  const cy = node.y ?? 0;
+  const width = node.width ?? 0;
+  const height = node.height ?? 0;
+  if (width <= 0 || height <= 0) {
+    return undefined;
+  }
+  return rectFromCenterSize(cx, cy, width, height);
 }
 
 export function portForRectSide(
