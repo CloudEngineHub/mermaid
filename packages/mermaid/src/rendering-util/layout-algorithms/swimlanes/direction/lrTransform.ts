@@ -210,8 +210,6 @@ export function applyLrDirectionTransform(
 
   const nodeById = buildNodeMap(nodes);
   const childrenByLane = new Map<string, LayoutNode[]>();
-  let globalMinXChild = Infinity;
-  let globalMaxXChild = -Infinity;
 
   for (const n of nodes) {
     if (n.isGroup) {
@@ -224,21 +222,6 @@ export function applyLrDirectionTransform(
     const bucket = childrenByLane.get(laneId) ?? [];
     bucket.push(n);
     childrenByLane.set(laneId, bucket);
-
-    const cx = n.x ?? 0;
-    const cw = n.width ?? 0;
-    const left = cx - cw / 2;
-    const right = cx + cw / 2;
-    if (left < globalMinXChild) {
-      globalMinXChild = left;
-    }
-    if (right > globalMaxXChild) {
-      globalMaxXChild = right;
-    }
-  }
-
-  if (globalMinXChild === Infinity || globalMaxXChild === -Infinity) {
-    return true;
   }
 
   let maxPad = 0;
@@ -248,6 +231,37 @@ export function applyLrDirectionTransform(
       maxPad = pad;
     }
   }
+
+  const laneBounds: {
+    lane: LayoutNode;
+    contentTop: number;
+    contentBottom: number;
+    centerY: number;
+  }[] = [];
+  let globalMinXChild = Infinity;
+  let globalMaxXChild = -Infinity;
+
+  for (const lane of laneNodes) {
+    const children = childrenByLane.get(lane.id) ?? [];
+    const bounds = boundsForChildren(children);
+    if (!bounds) {
+      continue;
+    }
+    globalMinXChild = Math.min(globalMinXChild, bounds.minX);
+    globalMaxXChild = Math.max(globalMaxXChild, bounds.maxX);
+
+    laneBounds.push({
+      lane,
+      contentTop: bounds.minY,
+      contentBottom: bounds.maxY,
+      centerY: (bounds.minY + bounds.maxY) / 2,
+    });
+  }
+
+  if (globalMinXChild === Infinity || globalMaxXChild === -Infinity) {
+    return true;
+  }
+
   const minHeaderMargin = 36;
   const fullContentWidth = Math.max(0, globalMaxXChild - globalMinXChild);
   const horizontalMargin = Math.max(maxPad, 10);
@@ -259,46 +273,6 @@ export function applyLrDirectionTransform(
   const laneLeft = bodyLeft - titleBandWidth;
   const centerX = laneLeft + laneWidth / 2;
   const verticalMargin = Math.max(maxPad, minHeaderMargin);
-
-  const laneBounds: {
-    lane: LayoutNode;
-    contentTop: number;
-    contentBottom: number;
-    centerY: number;
-  }[] = [];
-
-  for (const lane of laneNodes) {
-    const children = childrenByLane.get(lane.id) ?? [];
-    if (children.length === 0) {
-      continue;
-    }
-
-    let laneMinY = Infinity;
-    let laneMaxY = -Infinity;
-    for (const child of children) {
-      const cy = child.y ?? 0;
-      const ch = child.height ?? 0;
-      const top = cy - ch / 2;
-      const bottom = cy + ch / 2;
-      if (top < laneMinY) {
-        laneMinY = top;
-      }
-      if (bottom > laneMaxY) {
-        laneMaxY = bottom;
-      }
-    }
-
-    if (laneMinY === Infinity || laneMaxY === -Infinity) {
-      continue;
-    }
-
-    laneBounds.push({
-      lane,
-      contentTop: laneMinY,
-      contentBottom: laneMaxY,
-      centerY: (laneMinY + laneMaxY) / 2,
-    });
-  }
 
   laneBounds.sort((a, b) => a.centerY - b.centerY);
 
