@@ -38,7 +38,7 @@ describe('Swimlanes DDLT — 6-legal-constr-sales.mmd', () => {
     expect(result.issues).toEqual([]);
   });
 
-  it('Level 1: L_I_K_0 does not hug J while routing toward K (iter 17 Wybrow nudge)', async () => {
+  it('Level 1: L_I_K_0 does not hug J while routing toward K', async () => {
     // Iter 17 regression pin — Wybrow §Nudging applied as a post-route
     // single-segment nudge (NotebookLM src e8804c93-74b7-4e06-94d0-7e5cf95fe7e3).
     //

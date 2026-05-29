@@ -7,8 +7,6 @@ import {
 import { orthogonalizePolyline, simplifyPolyline } from './direction/geometry.js';
 import { applyBtDirectionTransform, applyLrDirectionTransform } from './direction/lrTransform.js';
 import { portSwapToLShape } from './direction/portSwap.js';
-import { nudgeInteriorVerticalsFromObstacles } from './direction/obstacleNudging.js';
-import { straightenStalePortOffsets } from './direction/stalePortOffsets.js';
 import { collapseShortTerminalStub } from './direction/terminalStub.js';
 import {
   collapseRedundantRectangularDoglegs,
@@ -17,8 +15,6 @@ import {
 } from './direction/materializedGeometry.js';
 import { simplifyDetouredEdges } from './direction/detourSimplification.js';
 import { anchorLabelsToPolyline } from './direction/labelAnchoring.js';
-import { resolveEdgeNodeIntersections } from './direction/nodeIntersections.js';
-import { preventSiblingLShapeCrossings } from './direction/siblingAntiCrossing.js';
 import { straightenCollinearSiblingDetours } from './direction/siblingSharedFaceRouting.js';
 import { nudgeSharedInteriorSubpaths } from './direction/sharedTrackNudging.js';
 export { validateSwimlanesLayout } from './direction/validation.js';
@@ -45,9 +41,6 @@ export function postProcessSwimlaneLayout(layout: LayoutData, direction?: string
     return;
   }
 
-  // Post-routing cleanup runs for every direction after any coordinate transform.
-  resolveEdgeNodeIntersections(layout);
-
   for (const edge of edges) {
     if ((edge as { isLayoutOnly?: boolean }).isLayoutOnly) {
       continue;
@@ -69,25 +62,16 @@ export function postProcessSwimlaneLayout(layout: LayoutData, direction?: string
   // Swap a source port only when it produces a clear L-shape with fewer bends.
   portSwapToLShape(edges as any[], nodes);
 
-  // Reorder sibling L-shapes whose vertical legs crossed after routing.
-  preventSiblingLShapeCrossings(edges as any[]);
-
   const nodeByIdMap = new Map<string, any>();
   for (const n of nodes) {
     nodeByIdMap.set(String(n.id), n);
   }
   anchorLabelsToPolyline(edges, nodeByIdMap);
 
-  // Collapse short stale port-offset jogs left after detour simplification.
-  straightenStalePortOffsets(edges, nodeByIdMap);
-
   clipEdgeEndpointsToNodeBoundaries(edges, nodeByIdMap);
 
   // Retarget short terminal stubs that are hidden by endpoint clipping.
   collapseShortTerminalStub(edges, nodeByIdMap);
-
-  // Move close interior verticals toward the center of their obstacle channel.
-  nudgeInteriorVerticalsFromObstacles(edges, nodeByIdMap);
 
   // Wybrow-style shared-track nudge. The router may legitimately bundle
   // connectors onto the same rail, but before rendering those coincident

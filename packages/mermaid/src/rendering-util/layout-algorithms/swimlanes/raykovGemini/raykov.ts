@@ -453,9 +453,8 @@ export function routeEdgesOrthogonal(data: LayoutData, direction?: string): Layo
   //
   // Sequencing note (critical, per Algorithm Expert review): this pass
   // MUST run before the port-group build (6.3), anchor computation
-  // (Step 7), and preventSiblingLShapeCrossings. Changing a
-  // side later would corrupt E_{v,s} membership without updating
-  // downstream sort keys.
+  // (Step 7), and any later port-sensitive post-processing. Changing a side
+  // later would corrupt E_{v,s} membership without updating downstream sort keys.
   //
   // "Preference strength" = the dy/dx ratio (for vertically-preferred
   // edges) or dx/dy ratio (for horizontally-preferred) — higher ratio

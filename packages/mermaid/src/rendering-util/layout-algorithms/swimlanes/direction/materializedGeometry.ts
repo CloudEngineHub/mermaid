@@ -2,6 +2,7 @@
 
 import {
   collectNodeRectEntries,
+  countOrthogonalBends,
   dedupeConsecutivePoints,
   isHorizontalSegment,
   isVerticalSegment,
@@ -9,12 +10,13 @@ import {
   sameX,
   sameY,
   buildOrthogonalPortPath,
-  overlapLength,
+  buildSameSideTrackPath,
   orthogonalSegmentsForPoints,
   orthogonalSegmentsStrictlyCross,
   portForRectSide,
   rectOfNodeBounds,
-  segmentBoundsOverlapRect,
+  sameAxisSegmentOverlapLength,
+  segmentHitsAnyRect,
 } from './geometry.js';
 import type { OrthogonalSegment, Point, RectBounds, RectSide } from './geometry.js';
 
@@ -25,16 +27,6 @@ type PointLite = Point;
 type RectLite = RectBounds;
 
 type SegmentLite = OrthogonalSegment;
-
-const sameAxisOverlap = (a: SegmentLite, b: SegmentLite): number => {
-  if (a.horizontal && b.horizontal && sameY(a.a, b.a, 0.5)) {
-    return overlapLength(a.a.x, a.b.x, b.a.x, b.b.x);
-  }
-  if (a.vertical && b.vertical && sameX(a.a, b.a, 0.5)) {
-    return overlapLength(a.a.y, a.b.y, b.a.y, b.b.y);
-  }
-  return 0;
-};
 
 const segmentsFor = orthogonalSegmentsForPoints;
 
@@ -339,19 +331,13 @@ export function collapseRedundantRectangularDoglegs(
       return false;
     }
 
+    const endpointIds = [sourceId, targetId].filter((id): id is string => Boolean(id));
     for (const segment of candidateSegments) {
-      for (const nodeRect of realNodeRects) {
-        if (nodeRect.id === sourceId || nodeRect.id === targetId) {
-          continue;
-        }
-        if (segmentBoundsOverlapRect(segment.a, segment.b, nodeRect.rect, BUFFER)) {
-          return false;
-        }
+      if (segmentHitsAnyRect(segment.a, segment.b, realNodeRects, endpointIds, -BUFFER)) {
+        return false;
       }
-      for (const labelRect of labelRects) {
-        if (segmentBoundsOverlapRect(segment.a, segment.b, labelRect.rect, BUFFER)) {
-          return false;
-        }
+      if (segmentHitsAnyRect(segment.a, segment.b, labelRects, [], -BUFFER)) {
+        return false;
       }
     }
 
@@ -365,7 +351,7 @@ export function collapseRedundantRectangularDoglegs(
       }
       for (const candidateSegment of candidateSegments) {
         for (const otherSegment of segmentsFor(dedupeConsecutivePoints(otherPoints))) {
-          if (sameAxisOverlap(candidateSegment, otherSegment) >= MIN_SHARED) {
+          if (sameAxisSegmentOverlapLength(candidateSegment, otherSegment, 0.5) >= MIN_SHARED) {
             return false;
           }
           if (
@@ -574,7 +560,7 @@ export function resolveRenderedOrthogonalCrossings(
       }
       for (const candidateSegment of pathSegments) {
         for (const otherSegment of segmentsFor(pointsFor(other))) {
-          if (sameAxisOverlap(candidateSegment, otherSegment) >= MIN_SHARED) {
+          if (sameAxisSegmentOverlapLength(candidateSegment, otherSegment, 0.5) >= MIN_SHARED) {
             return true;
           }
         }
@@ -604,17 +590,6 @@ export function resolveRenderedOrthogonalCrossings(
     return false;
   };
 
-  const countBends = (path: PointLite[]): number => {
-    const segments = segmentsFor(path);
-    let bends = 0;
-    for (let i = 1; i < segments.length; i++) {
-      if (segments[i - 1].horizontal !== segments[i].horizontal) {
-        bends++;
-      }
-    }
-    return bends;
-  };
-
   const buildCandidatesForSides = (
     src: PointLite,
     srcSide: RectSide,
@@ -631,15 +606,13 @@ export function resolveRenderedOrthogonalCrossings(
       if (srcSide === 'left' || srcSide === 'right') {
         const localX =
           srcSide === 'left' ? Math.min(src.x, dst.x) - ANCHOR : Math.max(src.x, dst.x) + ANCHOR;
-        const globalX = srcSide === 'left' ? outsideTracks.left : outsideTracks.right;
-        candidates.push([src, { x: localX, y: src.y }, { x: localX, y: dst.y }, dst]);
-        candidates.push([src, { x: globalX, y: src.y }, { x: globalX, y: dst.y }, dst]);
+        candidates.push(buildSameSideTrackPath(src, srcSide, dst, localX));
+        candidates.push(buildSameSideTrackPath(src, srcSide, dst, outsideTracks[srcSide]));
       } else {
         const localY =
           srcSide === 'top' ? Math.min(src.y, dst.y) - ANCHOR : Math.max(src.y, dst.y) + ANCHOR;
-        const globalY = srcSide === 'top' ? outsideTracks.top : outsideTracks.bottom;
-        candidates.push([src, { x: src.x, y: localY }, { x: dst.x, y: localY }, dst]);
-        candidates.push([src, { x: src.x, y: globalY }, { x: dst.x, y: globalY }, dst]);
+        candidates.push(buildSameSideTrackPath(src, srcSide, dst, localY));
+        candidates.push(buildSameSideTrackPath(src, srcSide, dst, outsideTracks[srcSide]));
       }
     }
 
@@ -696,7 +669,7 @@ export function resolveRenderedOrthogonalCrossings(
           continue;
         }
         const candidateCrossings = crossingCount(edge, candidate);
-        const candidateBends = countBends(candidate);
+        const candidateBends = countOrthogonalBends(candidate, EPS_LOCAL);
         if (
           candidateCrossings > bestCrossings ||
           (candidateCrossings === bestCrossings && candidateBends >= bestBends)

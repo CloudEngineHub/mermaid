@@ -1,6 +1,13 @@
 // cspell:ignore Helmers Wybrow
 import type { Edge, Node } from '../../../types.js';
-import { rectFromCenterSize, segmentBoundsOverlapRect } from './geometry.js';
+import {
+  inflateRect,
+  rectContainsRect,
+  rectFromCenterSize,
+  rectOfNodeBounds,
+  rectsOverlap,
+  segmentBoundsOverlapRect,
+} from './geometry.js';
 import type { RectBounds } from './geometry.js';
 
 const EPS = 1e-3;
@@ -39,14 +46,11 @@ export function anchorLabelsToPolyline(edges: Edge[], nodeByIdMap: Map<string, N
     const isGroup = n.isGroup;
     const parentId = n.parentId;
     if (isGroup && !parentId) {
-      const cx = n.x ?? 0;
-      const cy = n.y ?? 0;
-      const w = n.width ?? 0;
-      const h = n.height ?? 0;
-      if (w > 0 && h > 0) {
+      const rect = rectOfNodeBounds(n);
+      if (rect) {
         laneGroups.push({
           id: n.id,
-          rect: rectFromCenterSize(cx, cy, w, h),
+          rect,
         });
       }
       continue;
@@ -57,43 +61,26 @@ export function anchorLabelsToPolyline(edges: Edge[], nodeByIdMap: Map<string, N
     if (n.isEdgeLabel) {
       continue;
     }
-    const cx = n.x ?? 0;
-    const cy = n.y ?? 0;
-    const w = n.width ?? 0;
-    const h = n.height ?? 0;
-    if (w <= 0 || h <= 0) {
+    const rect = rectOfNodeBounds(n);
+    if (!rect) {
       continue;
     }
     foreignNodeRects.push({
       nodeId: n.id,
-      rect: rectFromCenterSize(cx, cy, w, h),
+      rect,
     });
   }
-
-  const rectContainsRect = (outer: RectLite, inner: RectLite): boolean =>
-    outer.left <= inner.left &&
-    outer.right >= inner.right &&
-    outer.top <= inner.top &&
-    outer.bottom >= inner.bottom;
-
-  const rectsOverlap = (a: RectLite, b: RectLite): boolean =>
-    a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
 
   // Inflation margin for foreign-edge / foreign-node proximity. The layout
   // validator's `edge-border-hugging` check fires when a polyline runs
   // within ~2u of a label's visual border (EPS_BORDER). Inflate the label
   // rect we test by a little more than that when rejecting candidates, so
-  // no chosen placement will trigger the hug check. 3u matches the buffer
-  // resolveEdgeNodeIntersections historically used for labels.
+  // no chosen placement will trigger the hug check. 3u preserves the buffer
+  // used by the old pre-label detour pass.
   const LABEL_PLACEMENT_BUFFER = 3;
 
   const labelOverlapsAnything = (labelId: string, edgeId: string, rect: RectLite): boolean => {
-    const buffered = {
-      left: rect.left - LABEL_PLACEMENT_BUFFER,
-      right: rect.right + LABEL_PLACEMENT_BUFFER,
-      top: rect.top - LABEL_PLACEMENT_BUFFER,
-      bottom: rect.bottom + LABEL_PLACEMENT_BUFFER,
-    };
+    const buffered = inflateRect(rect, LABEL_PLACEMENT_BUFFER);
     for (const { nodeId, rect: nr } of foreignNodeRects) {
       if (nodeId === labelId) {
         continue;

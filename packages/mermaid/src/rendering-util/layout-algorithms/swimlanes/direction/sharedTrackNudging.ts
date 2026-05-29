@@ -2,12 +2,10 @@ import type { Edge, Node } from '../../../types.js';
 import {
   collectNodeRectEntries,
   dedupeConsecutivePoints,
-  overlapLength,
   orthogonalSegmentsForPoints,
   orthogonalSegmentsStrictlyCross,
-  sameX,
-  sameY,
-  segmentBoundsOverlapRect,
+  sameAxisSegmentOverlapLength,
+  segmentHitsAnyRect,
 } from './geometry.js';
 import type { OrthogonalSegment, Point } from './geometry.js';
 
@@ -28,16 +26,6 @@ export function nudgeSharedInteriorSubpaths(edges: Edge[], nodeByIdMap: Map<stri
   const { realNodeRects, labelNodeRects: labelRects } = collectNodeRectEntries(
     nodeByIdMap.values()
   );
-
-  const sameAxisOverlap = (a: SegmentLite, b: SegmentLite): number => {
-    if (a.horizontal && b.horizontal && sameY(a.a, b.a, EPS_LOCAL)) {
-      return overlapLength(a.a.x, a.b.x, b.a.x, b.b.x);
-    }
-    if (a.vertical && b.vertical && sameX(a.a, b.a, EPS_LOCAL)) {
-      return overlapLength(a.a.y, a.b.y, b.a.y, b.b.y);
-    }
-    return 0;
-  };
 
   const segmentsFor = (edge: Edge, points: PointLite[]): SegmentLite[] => {
     return orthogonalSegmentsForPoints(points, EPS_LOCAL).map((segment) => ({
@@ -70,23 +58,14 @@ export function nudgeSharedInteriorSubpaths(edges: Edge[], nodeByIdMap: Map<stri
       return false;
     }
 
+    const endpointIds = [sourceId, targetId].filter((id): id is string => Boolean(id));
+    const ownLabelIds = edge.labelNodeId ? [edge.labelNodeId] : [];
     for (const segment of candidateSegments) {
-      for (const nodeRect of realNodeRects) {
-        if (nodeRect.id === sourceId || nodeRect.id === targetId) {
-          continue;
-        }
-        if (segmentBoundsOverlapRect(segment.a, segment.b, nodeRect.rect, BUFFER)) {
-          return false;
-        }
+      if (segmentHitsAnyRect(segment.a, segment.b, realNodeRects, endpointIds, -BUFFER)) {
+        return false;
       }
-      const ownLabelId = edge.labelNodeId;
-      for (const labelRect of labelRects) {
-        if (ownLabelId && labelRect.id === ownLabelId) {
-          continue;
-        }
-        if (segmentBoundsOverlapRect(segment.a, segment.b, labelRect.rect, BUFFER)) {
-          return false;
-        }
+      if (segmentHitsAnyRect(segment.a, segment.b, labelRects, ownLabelIds, -BUFFER)) {
+        return false;
       }
     }
 
@@ -100,7 +79,9 @@ export function nudgeSharedInteriorSubpaths(edges: Edge[], nodeByIdMap: Map<stri
       }
       for (const candidateSegment of candidateSegments) {
         for (const otherSegment of segmentsFor(other, dedupeConsecutivePoints(otherPoints))) {
-          if (sameAxisOverlap(candidateSegment, otherSegment) >= MIN_SHARED) {
+          if (
+            sameAxisSegmentOverlapLength(candidateSegment, otherSegment, EPS_LOCAL) >= MIN_SHARED
+          ) {
             return false;
           }
           if (
@@ -158,7 +139,10 @@ export function nudgeSharedInteriorSubpaths(edges: Edge[], nodeByIdMap: Map<stri
       for (let j = i + 1; j < segments.length && !fixed; j++) {
         const first = segments[i];
         const second = segments[j];
-        if (first.edge === second.edge || sameAxisOverlap(first, second) < MIN_SHARED) {
+        if (
+          first.edge === second.edge ||
+          sameAxisSegmentOverlapLength(first, second, EPS_LOCAL) < MIN_SHARED
+        ) {
           continue;
         }
 

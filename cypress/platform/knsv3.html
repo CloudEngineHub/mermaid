@@ -409,34 +409,41 @@ flowchart LR
 
     </pre>
     <pre class="mermaid">
+swimlanes LR
+  subgraph Customer
+    request[Request service]
+    receive[Receive update]
+  end
+
+  subgraph Support
+    triage[Triage request]
+    answer[Send answer]
+  end
+
+  subgraph Engineering
+    investigate[Investigate issue]
+    fix[Prepare fix]
+  end
+
+  request --> triage
+  triage -->|Known issue| answer
+  triage -->|Needs code change| investigate
+  investigate --> fix --> answer
+  answer --> receive
+
+    </pre>
+    <pre class="mermaid2">
 flowchart LR
-
-
-  subgraph S["Sales"]
-    T5["Confirm with customer"]
+   subgraph customer
+    sales_process(sales process)
+    places_order[places order]
   end
 
-  subgraph T["Technical support"]
-    T4["Get more details from customer"]
-    T6["Resolve solution"]
+   subgraph sales
+    order_complete{{order<br>complete?}}
+    details[ask for details]
   end
-
-  subgraph Tester["Tester"]
-    Te2{"Reproduced the issue"}
-    D4{"Resolved?"}
-  end
-
-  subgraph D["Development"]
-    D1["Error report"]
-    D2["Technical analysis"]
-    D3["Fix the issue"]
-
-  end
-  %% Edges
-  Te2 -- Yes --> D1 --> D2 --> D3 --> D4
-  Te2 -- No --> T4
-  D4 -- No --> D2
-  D4 -- Yes --> T6 --> T5
+    sales_process --> places_order --> order_complete -- no --> details --> order_complete
     </pre>
 
     <script type="module">

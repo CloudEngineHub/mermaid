@@ -3,12 +3,13 @@
 import type { NodeBoundsInfo } from './geometry.js';
 import {
   buildOrthogonalPortPath,
+  buildSameSideTrackPath,
   collectRealNodeBounds,
+  countOrthogonalBends,
   orthogonalSegmentsCross,
-  overlapLength,
+  orthogonalSegmentsForPoints,
   portForRectSide,
-  sameX,
-  sameY,
+  sameAxisSegmentOverlapLength,
   segmentHitsAnyRect,
 } from './geometry.js';
 import type { RectSide } from './geometry.js';
@@ -18,21 +19,6 @@ const MIN_SHARED = 8;
 
 export function simplifyDetouredEdges(edges: any[], nodes: any[]): void {
   const { nodeInfoById, realNodeRects } = collectRealNodeBounds(nodes);
-
-  const countBends = (pts: { x: number; y: number }[]): number => {
-    let bends = 0;
-    for (let i = 1; i < pts.length - 1; i++) {
-      const a = pts[i - 1];
-      const b = pts[i];
-      const c = pts[i + 1];
-      const abH = sameY(a, b, EPS);
-      const bcH = sameY(b, c, EPS);
-      if (abH !== bcH) {
-        bends++;
-      }
-    }
-    return bends;
-  };
 
   const sides: RectSide[] = ['top', 'bottom', 'left', 'right'];
 
@@ -69,35 +55,7 @@ export function simplifyDetouredEdges(edges: any[], nodes: any[]): void {
     // preserve the port pair and topology class, but move the maximal
     // middle segment into an uncongested alley if safety checks accept it.
     if (srcSide === dstSide) {
-      if (srcSide === 'top') {
-        paths.push([
-          src,
-          { x: src.x, y: outsideTracks.top },
-          { x: dst.x, y: outsideTracks.top },
-          dst,
-        ]);
-      } else if (srcSide === 'bottom') {
-        paths.push([
-          src,
-          { x: src.x, y: outsideTracks.bottom },
-          { x: dst.x, y: outsideTracks.bottom },
-          dst,
-        ]);
-      } else if (srcSide === 'left') {
-        paths.push([
-          src,
-          { x: outsideTracks.left, y: src.y },
-          { x: outsideTracks.left, y: dst.y },
-          dst,
-        ]);
-      } else {
-        paths.push([
-          src,
-          { x: outsideTracks.right, y: src.y },
-          { x: outsideTracks.right, y: dst.y },
-          dst,
-        ]);
-      }
+      paths.push(buildSameSideTrackPath(src, srcSide, dst, outsideTracks[srcSide]));
     }
 
     return paths;
@@ -120,6 +78,7 @@ export function simplifyDetouredEdges(edges: any[], nodes: any[]): void {
     includeIncidentEdges = false
   ): number => {
     let conflicts = 0;
+    const pathSegments = orthogonalSegmentsForPoints(path, EPS);
     const currentStart = (currentEdge as { start?: string }).start;
     const currentEnd = (currentEdge as { end?: string }).end;
     for (const other of edges) {
@@ -143,28 +102,23 @@ export function simplifyDetouredEdges(edges: any[], nodes: any[]): void {
       if (!otherPts || otherPts.length < 2) {
         continue;
       }
-      for (let i = 0; i < path.length - 1; i++) {
-        const a = path[i];
-        const b = path[i + 1];
-        const aH = sameY(a, b, EPS);
-        const aV = sameX(a, b, EPS);
-        for (let j = 0; j < otherPts.length - 1; j++) {
-          const c = otherPts[j];
-          const d = otherPts[j + 1];
-          if (orthogonalSegmentsCross(a, b, c, d, EPS, EPS)) {
+      for (const pathSegment of pathSegments) {
+        for (const otherSegment of orthogonalSegmentsForPoints(otherPts, EPS)) {
+          if (
+            orthogonalSegmentsCross(
+              pathSegment.a,
+              pathSegment.b,
+              otherSegment.a,
+              otherSegment.b,
+              EPS,
+              EPS
+            )
+          ) {
             conflicts++;
             continue;
           }
-          const cH = sameY(c, d, EPS);
-          const cV = sameX(c, d, EPS);
-          if (aH && cH && sameY(a, c, EPS)) {
-            if (overlapLength(a.x, b.x, c.x, d.x) >= MIN_SHARED) {
-              conflicts++;
-            }
-          } else if (aV && cV && sameX(a, c, EPS)) {
-            if (overlapLength(a.y, b.y, c.y, d.y) >= MIN_SHARED) {
-              conflicts++;
-            }
+          if (sameAxisSegmentOverlapLength(pathSegment, otherSegment, EPS) >= MIN_SHARED) {
+            conflicts++;
           }
         }
       }
@@ -266,7 +220,7 @@ export function simplifyDetouredEdges(edges: any[], nodes: any[]): void {
     if (!pts || pts.length < 2) {
       continue;
     }
-    const currentBends = countBends(pts);
+    const currentBends = countOrthogonalBends(pts, EPS);
     if (currentBends < BEND_THRESHOLD) {
       continue;
     }
@@ -303,7 +257,7 @@ export function simplifyDetouredEdges(edges: any[], nodes: any[]): void {
             continue;
           }
 
-          const pathBends = countBends(path);
+          const pathBends = countOrthogonalBends(path, EPS);
           if (currentCrossingConflicts > 0) {
             const pathCrossingConflicts = pathConflictCount(path, edge, true);
             if (

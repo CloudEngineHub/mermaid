@@ -5,10 +5,11 @@ import {
   isHorizontalSegment,
   isVerticalSegment,
   orthogonalSegmentsStrictlyCross as segmentsCross,
-  rectFromCenterSize,
+  pointInsideRect,
+  rectOfNodeBounds,
   sameX,
   sameY,
-  segmentBoundsOverlapRect,
+  segmentHitsAnyRect,
 } from './geometry.js';
 import type { Point } from './geometry.js';
 
@@ -16,8 +17,8 @@ import type { Point } from './geometry.js';
  * Iter 16 — collapse a short terminal stub at an edge's destination by
  * retargeting the destination face and dropping the corner. See the call-
  * site comment in `applySwimlaneDirectionTransform` for the user report and
- * paper backing (Siebenhaller `21f7ca55`; precedent in
- * `straightenStalePortOffsets`, Hegemann-Wolff `b65b3d45`).
+ * paper backing (Siebenhaller `21f7ca55`; precedent in the retired
+ * stale-port-offset straightener, Hegemann-Wolff `b65b3d45`).
  *
  * Shape handled:
  *   ... → prev → penult → end
@@ -104,12 +105,10 @@ export function collapseShortTerminalStub(edges: any[], nodeByIdMap: Map<string,
     }
     const dstCx = (dst as { x?: number }).x ?? 0;
     const dstCy = (dst as { y?: number }).y ?? 0;
-    const dstW = (dst as { width?: number }).width ?? 0;
-    const dstH = (dst as { height?: number }).height ?? 0;
-    if (dstW <= 0 || dstH <= 0) {
+    const dstRect = rectOfNodeBounds(dst);
+    if (!dstRect) {
       continue;
     }
-    const dstRect = rectFromCenterSize(dstCx, dstCy, dstW, dstH);
 
     // Compute the new prev' and end'. The axis of approach is the
     // penult segment's axis; the new face is on the perpendicular to
@@ -130,51 +129,21 @@ export function collapseShortTerminalStub(edges: any[], nodeByIdMap: Map<string,
 
     // Reject if the new prev'→end' vertical/horizontal segment would cross
     // any real-node rect (other than dst itself).
-    let blocked = false;
-    for (const rn of realNodeRects) {
-      if (rn.id === dstId) {
-        continue;
-      }
-      if (segmentBoundsOverlapRect(newPrev, newEnd, rn.rect, BUFFER)) {
-        blocked = true;
-        break;
-      }
-    }
-    if (blocked) {
+    if (segmentHitsAnyRect(newPrev, newEnd, realNodeRects, dstId ? [dstId] : [], -BUFFER)) {
       continue;
     }
 
     // Reject if the new approach segment would run through any label rect.
-    for (const lr of labelRects) {
-      if (segmentBoundsOverlapRect(newPrev, newEnd, lr.rect, BUFFER)) {
-        blocked = true;
-        break;
-      }
-    }
-    if (blocked) {
+    if (segmentHitsAnyRect(newPrev, newEnd, labelRects, [], -BUFFER)) {
       continue;
     }
 
     // Reject if new prev' lies inside the src node's rect (pathological).
     if (srcId) {
       const src = nodeByIdMap.get(srcId);
-      const srcCx = (src as { x?: number })?.x ?? 0;
-      const srcCy = (src as { y?: number })?.y ?? 0;
-      const srcW = (src as { width?: number })?.width ?? 0;
-      const srcH = (src as { height?: number })?.height ?? 0;
-      if (srcW > 0 && srcH > 0) {
-        const srcL = srcCx - srcW / 2;
-        const srcR = srcCx + srcW / 2;
-        const srcT = srcCy - srcH / 2;
-        const srcB = srcCy + srcH / 2;
-        if (
-          newPrev.x > srcL + BUFFER &&
-          newPrev.x < srcR - BUFFER &&
-          newPrev.y > srcT + BUFFER &&
-          newPrev.y < srcB - BUFFER
-        ) {
-          continue;
-        }
+      const srcRect = src ? rectOfNodeBounds(src) : undefined;
+      if (srcRect && pointInsideRect(newPrev, srcRect, BUFFER)) {
+        continue;
       }
     }
 
@@ -213,8 +182,7 @@ export function collapseShortTerminalStub(edges: any[], nodeByIdMap: Map<string,
       return false;
     };
 
-    blocked = segmentCrossesOtherEdge(newPrev, newEnd);
-    if (blocked) {
+    if (segmentCrossesOtherEdge(newPrev, newEnd)) {
       continue;
     }
 
@@ -228,20 +196,11 @@ export function collapseShortTerminalStub(edges: any[], nodeByIdMap: Map<string,
       // to penult. Shifting prev to newPrev preserves that axis alignment
       // (only the axis we're shifting changes). Re-check for obstacles on
       // the NEW extended segment.
-      for (const rn of realNodeRects) {
-        if (rn.id === srcId || rn.id === dstId) {
-          continue;
-        }
-        if (segmentBoundsOverlapRect(beforePrev, newPrev, rn.rect, BUFFER)) {
-          blocked = true;
-          break;
-        }
-      }
-      if (blocked) {
+      const endpointIds = [srcId, dstId].filter((id): id is string => Boolean(id));
+      if (segmentHitsAnyRect(beforePrev, newPrev, realNodeRects, endpointIds, -BUFFER)) {
         continue;
       }
-      blocked = segmentCrossesOtherEdge(beforePrev, newPrev);
-      if (blocked) {
+      if (segmentCrossesOtherEdge(beforePrev, newPrev)) {
         continue;
       }
     }

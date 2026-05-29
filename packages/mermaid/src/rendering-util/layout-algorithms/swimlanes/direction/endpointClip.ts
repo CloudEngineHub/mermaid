@@ -1,5 +1,6 @@
 import {
   orthogonalizePolyline,
+  pointInsideRect,
   rectOfNodeBounds,
   samePoint,
   sameX,
@@ -37,15 +38,6 @@ function endpointContextFor(edge: unknown, nodeByIdMap: Map<string, any>, minPoi
   };
 }
 
-function strictlyInside(p: Point, r: NodeRect): boolean {
-  return (
-    p.x > r.left + INSIDE_EPS &&
-    p.x < r.right - INSIDE_EPS &&
-    p.y > r.top + INSIDE_EPS &&
-    p.y < r.bottom - INSIDE_EPS
-  );
-}
-
 // Given an axis-aligned segment from outside a rect to inside it, return the
 // point where the segment enters the rect boundary.
 function segmentEnterPoint(outside: Point, inside: Point, r: NodeRect): Point {
@@ -63,28 +55,29 @@ function segmentEnterPoint(outside: Point, inside: Point, r: NodeRect): Point {
   };
 }
 
-function clipStart(points: Point[], rect: NodeRect): Point[] {
-  let firstOutside = 0;
-  while (firstOutside < points.length && strictlyInside(points[firstOutside], rect)) {
-    firstOutside++;
+function clipEndpoint(points: Point[], rect: NodeRect, atStart: boolean): Point[] {
+  const step = atStart ? 1 : -1;
+  let outsideIndex = atStart ? 0 : points.length - 1;
+  while (
+    outsideIndex >= 0 &&
+    outsideIndex < points.length &&
+    pointInsideRect(points[outsideIndex], rect, INSIDE_EPS)
+  ) {
+    outsideIndex += step;
   }
-  if (firstOutside > 0 && firstOutside < points.length) {
-    const entry = segmentEnterPoint(points[firstOutside], points[firstOutside - 1], rect);
-    return [entry, ...points.slice(firstOutside)];
+  if (outsideIndex < 0 || outsideIndex >= points.length) {
+    return points;
   }
-  return points;
-}
 
-function clipEnd(points: Point[], rect: NodeRect): Point[] {
-  let lastOutside = points.length - 1;
-  while (lastOutside >= 0 && strictlyInside(points[lastOutside], rect)) {
-    lastOutside--;
+  const insideIndex = outsideIndex - step;
+  if (insideIndex < 0 || insideIndex >= points.length) {
+    return points;
   }
-  if (lastOutside < points.length - 1 && lastOutside >= 0) {
-    const entry = segmentEnterPoint(points[lastOutside], points[lastOutside + 1], rect);
-    return [...points.slice(0, lastOutside + 1), entry];
-  }
-  return points;
+
+  const entry = segmentEnterPoint(points[outsideIndex], points[insideIndex], rect);
+  return atStart
+    ? [entry, ...points.slice(outsideIndex)]
+    : [...points.slice(0, outsideIndex + 1), entry];
 }
 
 export function clipEdgeEndpointsToNodeBoundaries(edges: unknown[], nodeByIdMap: Map<string, any>) {
@@ -96,10 +89,10 @@ export function clipEdgeEndpointsToNodeBoundaries(edges: unknown[], nodeByIdMap:
 
     let next = [...context.points];
     if (context.srcRect) {
-      next = clipStart(next, context.srcRect);
+      next = clipEndpoint(next, context.srcRect, true);
     }
     if (context.dstRect) {
-      next = clipEnd(next, context.dstRect);
+      next = clipEndpoint(next, context.dstRect, false);
     }
 
     context.edge.points = simplifyPolyline(orthogonalizePolyline(next));

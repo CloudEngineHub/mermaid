@@ -139,6 +139,20 @@ export function overlapLength(a1: number, a2: number, b1: number, b2: number): n
   );
 }
 
+export function sameAxisSegmentOverlapLength(
+  a: OrthogonalSegment,
+  b: OrthogonalSegment,
+  epsilon = EPS
+): number {
+  if (a.horizontal && b.horizontal && sameY(a.a, b.a, epsilon)) {
+    return overlapLength(a.a.x, a.b.x, b.a.x, b.b.x);
+  }
+  if (a.vertical && b.vertical && sameX(a.a, b.a, epsilon)) {
+    return overlapLength(a.a.y, a.b.y, b.a.y, b.b.y);
+  }
+  return 0;
+}
+
 export function orthogonalSegmentsForPoints(points: Point[], epsilon = EPS): OrthogonalSegment[] {
   const result: OrthogonalSegment[] = [];
   for (let i = 0; i < points.length - 1; i++) {
@@ -151,6 +165,17 @@ export function orthogonalSegmentsForPoints(points: Point[], epsilon = EPS): Ort
     }
   }
   return result;
+}
+
+export function countOrthogonalBends(points: Point[], epsilon = EPS): number {
+  const segments = orthogonalSegmentsForPoints(points, epsilon);
+  let bends = 0;
+  for (let i = 1; i < segments.length; i++) {
+    if (segments[i - 1].horizontal !== segments[i].horizontal) {
+      bends++;
+    }
+  }
+  return bends;
 }
 
 export function dedupeConsecutivePoints(points: Point[], epsilon = EPS): Point[] {
@@ -202,6 +227,37 @@ export function segmentBoundsOverlapRect(
     segMaxY > rect.top - buffer &&
     segMinY < rect.bottom + buffer
   );
+}
+
+export function pointInsideRect(point: Point, rect: RectBounds, buffer = 0): boolean {
+  return (
+    point.x > rect.left + buffer &&
+    point.x < rect.right - buffer &&
+    point.y > rect.top + buffer &&
+    point.y < rect.bottom - buffer
+  );
+}
+
+export function rectContainsRect(outer: RectBounds, inner: RectBounds): boolean {
+  return (
+    outer.left <= inner.left &&
+    outer.right >= inner.right &&
+    outer.top <= inner.top &&
+    outer.bottom >= inner.bottom
+  );
+}
+
+export function rectsOverlap(a: RectBounds, b: RectBounds): boolean {
+  return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+}
+
+export function inflateRect(rect: RectBounds, margin: number): RectBounds {
+  return {
+    left: rect.left - margin,
+    right: rect.right + margin,
+    top: rect.top - margin,
+    bottom: rect.bottom + margin,
+  };
 }
 
 export function rectFromCenterSize(
@@ -306,6 +362,17 @@ export function buildOrthogonalPortPath(
   const sameDirDst =
     (dstSide === 'left' && src.x < dst.x) || (dstSide === 'right' && src.x > dst.x);
   return sameDirSrc && sameDirDst ? [src, { x: src.x, y: dst.y }, dst] : undefined;
+}
+
+export function buildSameSideTrackPath(
+  src: Point,
+  side: RectSide,
+  dst: Point,
+  track: number
+): Point[] {
+  return side === 'left' || side === 'right'
+    ? [src, { x: track, y: src.y }, { x: track, y: dst.y }, dst]
+    : [src, { x: src.x, y: track }, { x: dst.x, y: track }, dst];
 }
 
 export function collectRealNodeBounds(nodes: Iterable<NodeBoundsInput>): {
