@@ -43,6 +43,14 @@ export function buildSuccessorMap(g: Graph): Map<NodeId, NodeId[]> {
   return succs;
 }
 
+export function buildSortedSuccessorMap(g: Graph): Map<NodeId, NodeId[]> {
+  const succs = buildSuccessorMap(g);
+  for (const successors of succs.values()) {
+    successors.sort((a, b) => a.localeCompare(b));
+  }
+  return succs;
+}
+
 export function buildInDegreeMap(g: Graph): Map<NodeId, number> {
   const indeg = new Map<NodeId, number>();
   for (const v of g.nodes) {
@@ -52,6 +60,13 @@ export function buildInDegreeMap(g: Graph): Map<NodeId, number> {
     indeg.set(e.dst, (indeg.get(e.dst) ?? 0) + 1);
   }
   return indeg;
+}
+
+export function sortedZeroInDegreeNodes(indeg: Map<NodeId, number>): NodeId[] {
+  return [...indeg.entries()]
+    .filter(([, degree]) => degree === 0)
+    .map(([id]) => id)
+    .sort((a, b) => a.localeCompare(b));
 }
 
 export function buildPredecessorSuccessorMaps(
@@ -133,22 +148,9 @@ export function isAcyclic(g: Graph): boolean {
 // Topological sort (Kahn). Returns null if cycles exist.
 export function topoSortIfAcyclic(g: Graph): NodeId[] | null {
   const indeg = buildInDegreeMap(g);
-
-  // Initialize queue with zero in-degree nodes
-  const queue: NodeId[] = [];
-  for (const [v, d] of indeg) {
-    if (d === 0) {
-      queue.push(v);
-    }
-  }
-  // Stable order: lexicographic tie-break
-  queue.sort((a, b) => a.localeCompare(b));
-
+  const queue = sortedZeroInDegreeNodes(indeg);
   const order: NodeId[] = [];
-  const adj = buildSuccessorMap(g);
-  for (const vs of adj.values()) {
-    vs.sort((a, b) => a.localeCompare(b));
-  }
+  const adj = buildSortedSuccessorMap(g);
 
   while (queue.length) {
     const u = queue.shift()!;

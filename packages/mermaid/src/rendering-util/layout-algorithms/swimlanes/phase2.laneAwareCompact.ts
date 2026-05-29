@@ -2,9 +2,10 @@ import type { Graph, Layering, NodeId } from './helpers.js';
 import {
   buildInDegreeMap,
   buildLayersFromRanks,
-  buildSuccessorMap,
+  buildSortedSuccessorMap,
   incoming,
   normalizeGraph,
+  sortedZeroInDegreeNodes,
   topoSortIfAcyclic,
 } from './phase0.helpers.js';
 import type { LayeringOptions } from './phase2.options.js';
@@ -14,15 +15,8 @@ import { createTopLaneResolver } from './phase2.options.js';
 
 function topoSortByGenerationIfAcyclic(g: Graph): NodeId[] | null {
   const indeg = buildInDegreeMap(g);
-  const adj = buildSuccessorMap(g);
-  for (const successors of adj.values()) {
-    successors.sort((a, b) => a.localeCompare(b));
-  }
-
-  let frontier = [...indeg.entries()]
-    .filter(([, degree]) => degree === 0)
-    .map(([id]) => id)
-    .sort((a, b) => a.localeCompare(b));
+  const adj = buildSortedSuccessorMap(g);
+  let frontier = sortedZeroInDegreeNodes(indeg);
   const order: NodeId[] = [];
 
   while (frontier.length > 0) {
