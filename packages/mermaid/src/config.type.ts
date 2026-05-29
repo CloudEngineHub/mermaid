@@ -348,7 +348,6 @@ export interface FlowchartDiagramConfig extends BaseDiagramConfig {
   ignoreCrossLaneEdges?: boolean;
   /**
    * Enables a crossing-aware rank optimization pass for swimlane layouts.
-   * Defaults to the value of `ignoreCrossLaneEdges` when unspecified.
    *
    * **Only used by the experimental swimlanes layout.**
    *

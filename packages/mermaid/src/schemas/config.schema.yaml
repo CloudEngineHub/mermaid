@@ -2223,15 +2223,15 @@ $defs: # JSON Schema definition (maybe we should move these to a separate file)
 
           **Only used by the experimental swimlanes layout.**
         type: boolean
-        default: false
+        default: true
 
       optimizeRanksByCrossings:
         description: |
           Enables a crossing-aware rank optimization pass for swimlane layouts.
-          Defaults to the value of `ignoreCrossLaneEdges` when unspecified.
 
           **Only used by the experimental swimlanes layout.**
         type: boolean
+        default: true
 
       padding:
         description: |

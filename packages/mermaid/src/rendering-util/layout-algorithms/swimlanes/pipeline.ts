@@ -31,6 +31,8 @@ export interface LayoutResult {
 }
 
 export function sugiyamaLayout(g: Graph, opts?: LayoutOptions): LayoutResult {
+  const ignoreCrossLaneEdges = opts?.ignoreCrossLaneEdges ?? true;
+  const optimizeRanksByCrossings = opts?.optimizeRanksByCrossings ?? true;
   const g0 = normalizeGraph(g);
 
   // Phase 1: cycle removal
@@ -38,7 +40,7 @@ export function sugiyamaLayout(g: Graph, opts?: LayoutOptions): LayoutResult {
   const gAcyclic = cycleRes.acyclic;
 
   // Phase 2: layering
-  const layering = opts?.ignoreCrossLaneEdges
+  const layering = ignoreCrossLaneEdges
     ? assignLayers_LaneAwareCompact(gAcyclic, {
         compactSingleInput: opts?.compactSingleInput ?? LAYERING.DEFAULT_COMPACT_SINGLE_INPUT,
         ignoreCrossLaneEdges: true,
@@ -47,7 +49,7 @@ export function sugiyamaLayout(g: Graph, opts?: LayoutOptions): LayoutResult {
     : assignLayers_Gravity(gAcyclic, {
         compactSingleInput: opts?.compactSingleInput ?? LAYERING.DEFAULT_COMPACT_SINGLE_INPUT,
         ignoreCrossLaneEdges: false,
-        optimizeRanksByCrossings: opts?.optimizeRanksByCrossings,
+        optimizeRanksByCrossings,
       });
   const { layering: properLayering, graphWithDummies } = makeProperLayering(layering, gAcyclic);
   // Phase 3: ordering

@@ -50,6 +50,12 @@ describe('when working with site config', () => {
       updatedConfig.quadrantChart!.chartWidth
     );
   });
+  it('should default swimlane layering options to true', () => {
+    const config = configApi.getConfig();
+
+    expect(config.flowchart?.ignoreCrossLaneEdges).toBe(true);
+    expect(config.flowchart?.optimizeRanksByCrossings).toBe(true);
+  });
   it('should set reset config properly', () => {
     const config_0 = { fontFamily: 'foo-font', fontSize: 150 };
     configApi.setSiteConfig(config_0);
