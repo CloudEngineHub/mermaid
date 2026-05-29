@@ -15,6 +15,28 @@ type NodeRect = RectBounds;
 
 type BorderSide = 'top' | 'bottom' | 'left' | 'right';
 
+interface EndpointEdge {
+  isLayoutOnly?: boolean;
+  points?: Point[];
+  start?: string;
+  end?: string;
+}
+
+function endpointContextFor(edge: unknown, nodeByIdMap: Map<string, any>, minPoints: number) {
+  const candidate = edge as EndpointEdge;
+  if (candidate.isLayoutOnly || !candidate.points || candidate.points.length < minPoints) {
+    return undefined;
+  }
+  const src = candidate.start ? nodeByIdMap.get(candidate.start) : undefined;
+  const dst = candidate.end ? nodeByIdMap.get(candidate.end) : undefined;
+  return {
+    edge: candidate,
+    points: candidate.points,
+    srcRect: src ? rectOfNodeBounds(src) : undefined,
+    dstRect: dst ? rectOfNodeBounds(dst) : undefined,
+  };
+}
+
 function strictlyInside(p: Point, r: NodeRect): boolean {
   return (
     p.x > r.left + INSIDE_EPS &&
@@ -67,29 +89,20 @@ function clipEnd(points: Point[], rect: NodeRect): Point[] {
 
 export function clipEdgeEndpointsToNodeBoundaries(edges: unknown[], nodeByIdMap: Map<string, any>) {
   for (const edge of edges) {
-    if ((edge as { isLayoutOnly?: boolean }).isLayoutOnly) {
+    const context = endpointContextFor(edge, nodeByIdMap, 2);
+    if (!context) {
       continue;
     }
-    const pts = (edge as { points?: Point[] }).points;
-    if (!pts || pts.length < 2) {
-      continue;
-    }
-    const srcId = (edge as { start?: string }).start;
-    const dstId = (edge as { end?: string }).end;
-    const src = srcId ? nodeByIdMap.get(srcId) : undefined;
-    const dst = dstId ? nodeByIdMap.get(dstId) : undefined;
-    const srcRect = src ? rectOfNodeBounds(src) : undefined;
-    const dstRect = dst ? rectOfNodeBounds(dst) : undefined;
 
-    let next = [...pts];
-    if (srcRect) {
-      next = clipStart(next, srcRect);
+    let next = [...context.points];
+    if (context.srcRect) {
+      next = clipStart(next, context.srcRect);
     }
-    if (dstRect) {
-      next = clipEnd(next, dstRect);
+    if (context.dstRect) {
+      next = clipEnd(next, context.dstRect);
     }
 
-    (edge as { points: Point[] }).points = simplifyPolyline(orthogonalizePolyline(next));
+    context.edge.points = simplifyPolyline(orthogonalizePolyline(next));
   }
 }
 
@@ -225,21 +238,12 @@ function snapAndCollapseEndpoints(
 
 export function prepareEdgeEndpointsForRenderer(edges: unknown[], nodeByIdMap: Map<string, any>) {
   for (const edge of edges) {
-    if ((edge as { isLayoutOnly?: boolean }).isLayoutOnly) {
+    const context = endpointContextFor(edge, nodeByIdMap, 3);
+    if (!context) {
       continue;
     }
-    const pts = (edge as { points?: Point[] }).points;
-    if (!pts || pts.length < 3) {
-      continue;
-    }
-    const srcId = (edge as { start?: string }).start;
-    const dstId = (edge as { end?: string }).end;
-    const src = srcId ? nodeByIdMap.get(srcId) : undefined;
-    const dst = dstId ? nodeByIdMap.get(dstId) : undefined;
-    const srcRect = src ? rectOfNodeBounds(src) : undefined;
-    const dstRect = dst ? rectOfNodeBounds(dst) : undefined;
 
-    const newPts = snapAndCollapseEndpoints(pts, srcRect, dstRect);
+    const newPts = snapAndCollapseEndpoints(context.points, context.srcRect, context.dstRect);
     const duplicated = [
       newPts[0],
       { ...newPts[0] },
@@ -247,6 +251,6 @@ export function prepareEdgeEndpointsForRenderer(edges: unknown[], nodeByIdMap: M
       newPts[newPts.length - 1],
       { ...newPts[newPts.length - 1] },
     ];
-    (edge as { points: Point[] }).points = duplicated;
+    context.edge.points = duplicated;
   }
 }

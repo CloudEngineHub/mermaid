@@ -25,33 +25,25 @@ export function assignCoordinates(
   const x: Record<NodeId, number> = Object.create(null);
   const y: Record<NodeId, number> = Object.create(null);
 
-  // Base placement: width/height aware with lane-aware packing
   const getNode = (id: NodeId) => gWithDummies.nodeById.get(id) as any;
   const getWidth = (id: NodeId) => getNode(id)?.width ?? 0;
   const getHeight = (id: NodeId) => getNode(id)?.height ?? 0;
   const topLaneOf = createTopLaneResolver(gWithDummies);
   const laneOrderGlobal = buildTopLaneOrder(gWithDummies);
 
-  // Precompute max height per layer for vertical spacing
   const layerHeights: number[] = layers.map((layer) =>
     layer.reduce((m, v) => Math.max(m, getHeight(v)), 0)
   );
 
-  // For LR/RL layouts, compute additional gap needed between adjacent layers
-  // based on the widths of nodes (which become horizontal after transform)
-  // This ensures nodes don't overlap horizontally after the direction transform
+  // LR/RL transforms turn width into horizontal span, so widen layer gaps up front.
   const extraLayerGaps: number[] = [];
   if (isHorizontal) {
     for (let i = 0; i + 1 < layers.length; i++) {
-      // Find the max width of nodes in this layer and the next layer
       const thisLayerMaxWidth = layers[i].reduce((m, v) => Math.max(m, getWidth(v)), 0);
       const nextLayerMaxWidth = layers[i + 1].reduce((m, v) => Math.max(m, getWidth(v)), 0);
       const thisLayerMaxHeight = layerHeights[i];
       const nextLayerMaxHeight = layerHeights[i + 1];
 
-      // The normal spacing is based on heights; we need extra space if widths are larger
-      // After LR transform: TB's (height/2 + layerGap + height/2) becomes horizontal distance
-      // We need: (width/2 + gap + width/2) >= some minimum
       const normalSpacing = thisLayerMaxHeight / 2 + nextLayerMaxHeight / 2;
       const requiredSpacing = (thisLayerMaxWidth + nextLayerMaxWidth) / 2;
       const extraNeeded = Math.max(0, requiredSpacing - normalSpacing - layerGap);
@@ -59,7 +51,6 @@ export function assignCoordinates(
     }
   }
 
-  // Determine which lanes actually have nodes and compute column widths
   const lanesUsedSet = new Set<string | null>();
   for (const layer of layers) {
     for (const id of layer) {
@@ -77,7 +68,6 @@ export function assignCoordinates(
   if (hasNullLane) {
     (laneWidth as any).null = 0 as any;
   }
-  // For each layer, compute total width per lane (sum of widths + gaps) and take max across layers
   for (const layer of layers) {
     const perLane: Record<string, string[]> = Object.create(null);
     const nullIds: string[] = [];
@@ -101,7 +91,6 @@ export function assignCoordinates(
     }
   }
 
-  // Compute lane centers across all layers (centered around x=0)
   const centerX = new Map<string | null, number>();
   {
     const widths = laneOrderColumns.map(
@@ -126,7 +115,6 @@ export function assignCoordinates(
   for (const [li, layer] of layers.entries()) {
     const layerH = layerHeights[li] ?? 0;
 
-    // Group nodes by top-level lane
     const byLane = new Map<string | null, NodeId[]>();
     for (const id of layer) {
       const laneId = topLaneOf(id);
@@ -135,7 +123,6 @@ export function assignCoordinates(
       byLane.set(laneId, arr);
     }
 
-    // Place nodes per lane at fixed column centers
     for (const L of laneOrderColumns) {
       const nodesInLane = byLane.get(L) ?? [];
       if (nodesInLane.length === 0) {
@@ -147,8 +134,7 @@ export function assignCoordinates(
         x[id] = cx;
         y[id] = yOffset + layerH / 2;
       } else {
-        // Phase 3 already produced lane-aware ordering — preserve it.
-        // Just spread multiple nodes within the lane around the center to avoid overlap.
+        // Preserve phase 3 order while spreading nodes around the lane center.
         const widths = nodesInLane.map((id) => getWidth(id));
         const total = widths.reduce((a, b) => a + b, 0) + nodeGap * (nodesInLane.length - 1);
         let start = cx - total / 2;
@@ -161,7 +147,6 @@ export function assignCoordinates(
       }
     }
 
-    // Add extra gap for LR/RL layouts where node widths require more horizontal spacing
     const extraGap = extraLayerGaps[li] ?? 0;
     yOffset += layerH + layerGap + extraGap;
   }
@@ -179,7 +164,7 @@ export function assignCoordinates(
     if (chainEdges.length === 0) {
       continue;
     }
-    const ref = chainEdges[0].ref; // original edge
+    const ref = chainEdges[0].ref;
     const src = ref.start!;
     const dst = ref.end!;
     if (src == null || dst == null) {
