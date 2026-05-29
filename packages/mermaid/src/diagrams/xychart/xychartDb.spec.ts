@@ -27,8 +27,8 @@ describe('xychartDb', () => {
       const chartData = db.getXYChartData();
       // Should only have 3 data points matching the 3 categories
       expect(chartData.plots).toHaveLength(1);
-      expect(chartData.plots[0]!.data).toHaveLength(3);
-      expect(chartData.plots[0]!.data).toEqual([
+      expect(chartData.plots[0].data).toHaveLength(3);
+      expect(chartData.plots[0].data).toEqual([
         ['cat1', 10],
         ['cat2', 20],
         ['cat3', 30],
@@ -44,8 +44,8 @@ describe('xychartDb', () => {
 
       const chartData = db.getXYChartData();
       expect(chartData.plots).toHaveLength(1);
-      expect(chartData.plots[0]!.data).toHaveLength(2);
-      expect(chartData.plots[0]!.data).toEqual([
+      expect(chartData.plots[0].data).toHaveLength(2);
+      expect(chartData.plots[0].data).toEqual([
         ['A', 100],
         ['B', 200],
       ]);
@@ -60,8 +60,8 @@ describe('xychartDb', () => {
       db.setBarData({ text: 'exact', type: 'text' }, pts(5, 10, 15));
 
       const chartData = db.getXYChartData();
-      expect(chartData.plots[0]!.data).toHaveLength(3);
-      expect(chartData.plots[0]!.data).toEqual([
+      expect(chartData.plots[0].data).toHaveLength(3);
+      expect(chartData.plots[0].data).toEqual([
         ['X', 5],
         ['Y', 10],
         ['Z', 15],
@@ -79,7 +79,7 @@ describe('xychartDb', () => {
 
       const chartData = db.getXYChartData();
       // categories.map produces entries for all 4 categories, with undefined for missing data
-      expect(chartData.plots[0]!.data).toHaveLength(4);
+      expect(chartData.plots[0].data).toHaveLength(4);
     });
 
     it('should compute y-axis range only from visible (truncated) data', () => {
