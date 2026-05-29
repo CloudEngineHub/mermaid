@@ -545,6 +545,51 @@ export function routeEdgesOrthogonal(data: LayoutData, direction?: string): Layo
     }
   }
 
+  // ----- Step 6.2b: bimodal in/out de-collision for diamond nodes -----
+  //
+  // Paper backing: the BIMODAL drawing constraint (Eiglsperger, "Orthogonal
+  // Graph Drawing with Constraints" §3.1): a vertex's incoming and outgoing
+  // edges should occupy separate, non-intersecting intervals of its circular
+  // edge order — in practice, distinct sides. Step 6.2 only load-balances
+  // same-role siblings (multiple out-edges from one side), so an out-edge can
+  // still land on the very side an in-edge already uses. On a diamond each
+  // side collapses to a single pin at the vertex (6.3 gives diamonds only a
+  // 0.3·side port span), so an in-edge and an out-edge sharing a side resolve
+  // to the SAME pin — the detached-stub "shared projected port" defect
+  // (validateLayout: edge-shared-projected-port). Move the out-edge to its
+  // free secondary side to restore bimodality. Scoped to diamonds so
+  // rectangles — whose long sides hold multiple distinct pins — are untouched.
+  const isDiamondNode = (node: MermaidNode | undefined): boolean => {
+    const shape = (node as { shape?: string } | undefined)?.shape;
+    return shape === 'question' || shape === 'diamond';
+  };
+  const inSidesByNode = new Map<string, Set<SideT>>();
+  for (const info of sideInfoByIdx.values()) {
+    if (!inSidesByNode.has(info.dstId)) {
+      inSidesByNode.set(info.dstId, new Set());
+    }
+    inSidesByNode.get(info.dstId)!.add(info.dstSide);
+  }
+  for (const info of sideInfoByIdx.values()) {
+    if (!isDiamondNode(nodeById.get(info.srcId))) {
+      continue;
+    }
+    const inSides = inSidesByNode.get(info.srcId);
+    if (!inSides?.has(info.srcSide)) {
+      continue; // no in-edge shares this out-edge's side → no bimodal clash
+    }
+    const secondary = secondarySide(info);
+    // Only move to a side that no in-edge uses and that carries no committed
+    // load — keeps the change surgical and never creates a new collision.
+    if (inSides.has(secondary) || (sideLoad.get(loadKey(info.srcId, secondary)) ?? 0) > 0) {
+      continue;
+    }
+    const primaryLoad = sideLoad.get(loadKey(info.srcId, info.srcSide)) ?? 0;
+    sideLoad.set(loadKey(info.srcId, info.srcSide), Math.max(0, primaryLoad - 1));
+    sideLoad.set(loadKey(info.srcId, secondary), 1);
+    info.srcSide = secondary;
+  }
+
   // ----- Step 6.3: port-group build (uses possibly-reassigned sides) --
   for (const info of sideInfoByIdx.values()) {
     const { edgeIdx: i, srcId, dstId, srcSide, dstSide } = info;
