@@ -3,7 +3,6 @@ import * as graphlib from 'dagre-d3-es/src/graphlib/index.js';
 import type { LayoutData, NonClusterNode } from './types.js';
 import { getConfig } from '../diagram-api/diagramAPI.js';
 import { insertNode } from './rendering-elements/nodes.js';
-import { DDLT_SIZE_CAPTURE_VERSION } from './layout-algorithms/ddlt/captureContract.js';
 
 // Update type:
 type D3Selection<T extends SVGElement = SVGElement> = Selection<
@@ -12,90 +11,6 @@ type D3Selection<T extends SVGElement = SVGElement> = Selection<
   Element | null,
   unknown
 >;
-
-// ─────────────────────────────────────────────────────────────────────────────
-// DDLT size capture
-//
-// When `window.mermaidCaptureSizes` is truthy, this module records the
-// bounding-box dimensions of every leaf node and edge-label dummy node
-// measured during createGraphWithElements() and records data matching the
-// `.sizes.json` fixture format used by DOM-Decoupled Layout
-// Testing (see cypress/platform/dev-diagrams/layout-tests/*.sizes.json).
-//
-// Toggle from the browser devtools:
-//
-//   window.mermaidCaptureSizes = true;   // enable
-//   window.mermaidCaptureSizes = false;  // disable
-//
-// Each diagram rendered while enabled updates `window.mermaidLastCapturedSizes`
-// and is also appended to `window.mermaidCapturedSizes` (an array) for
-// programmatic access from dev-explorer or test tooling.
-// ─────────────────────────────────────────────────────────────────────────────
-
-interface CapturedNodeSize {
-  id: string;
-  width: number;
-  height: number;
-}
-
-interface CapturedSizesMetadata {
-  captureVersion: number;
-  capturedAt: string;
-  capturedFrom: string;
-}
-
-interface CapturedSizes {
-  nodes: CapturedNodeSize[];
-  metadata: CapturedSizesMetadata;
-}
-
-interface CapturedEntry {
-  svgId: string;
-  sizes: CapturedSizes;
-}
-
-interface CaptureGlobal {
-  mermaidCaptureSizes?: boolean;
-  mermaidCapturedSizes?: CapturedEntry[];
-  mermaidLastCapturedSizes?: CapturedEntry;
-}
-
-function getCaptureGlobal(): CaptureGlobal | undefined {
-  if (typeof globalThis === 'undefined') {
-    return undefined;
-  }
-  return globalThis as unknown as CaptureGlobal;
-}
-
-function shouldCaptureSizes(): boolean {
-  return Boolean(getCaptureGlobal()?.mermaidCaptureSizes);
-}
-
-function capturedFromLocation(): string {
-  if (typeof location === 'undefined') {
-    return 'browser-dev';
-  }
-  return `${location.pathname}${location.search}`;
-}
-
-function emitCapturedSizes(captured: CapturedSizes, element: D3Selection): void {
-  const g = getCaptureGlobal();
-  if (!g) {
-    return;
-  }
-
-  // Identify the owning SVG so captures can be told apart when a page
-  // renders many diagrams (e.g. knsv3.html).
-  const domNode = element.node();
-  const ownerSvg =
-    (domNode && 'ownerSVGElement' in domNode ? domNode.ownerSVGElement : null) ?? domNode;
-  const svgId = ownerSvg?.id ?? '(unknown)';
-
-  g.mermaidCapturedSizes ??= [];
-  const entry = { svgId, sizes: captured };
-  g.mermaidCapturedSizes.push(entry);
-  g.mermaidLastCapturedSizes = entry;
-}
 
 /**
  * Creates a graph by merging the graph construction and DOM element insertion.
@@ -138,9 +53,6 @@ export async function createGraphWithElements(
 
   const nodeElements = new Map<string, D3Selection<SVGElement | SVGGElement>>();
 
-  // Collector for DDLT size capture (only allocated when the flag is on).
-  const capturedSizes: CapturedNodeSize[] | null = shouldCaptureSizes() ? [] : null;
-
   // When the container element is detached (no real DOM — e.g. headless unit
   // tests that exercise the layout engine without rendering), `insertNode`
   // cannot measure labels and would dereference a null node. The browser
@@ -160,13 +72,6 @@ export async function createGraphWithElements(
           nodeElements.set(node.id, childNodeEl as D3Selection<SVGElement | SVGGElement>);
           node.width = boundingBox.width;
           node.height = boundingBox.height;
-          if (capturedSizes) {
-            capturedSizes.push({
-              id: node.id,
-              width: boundingBox.width,
-              height: boundingBox.height,
-            });
-          }
         }
         graph.setNode(node.id, { ...node });
       }
@@ -212,14 +117,6 @@ export async function createGraphWithElements(
           // Update node dimensions
           labelNode.width = boundingBox.width;
           labelNode.height = boundingBox.height;
-
-          if (capturedSizes) {
-            capturedSizes.push({
-              id: labelNodeId,
-              width: boundingBox.width,
-              height: boundingBox.height,
-            });
-          }
 
           nodeElements.set(labelNodeId, labelNodeEl as D3Selection<SVGElement | SVGGElement>);
         }
@@ -281,18 +178,15 @@ export async function createGraphWithElements(
     }
   }
 
-  if (capturedSizes && capturedSizes.length > 0) {
-    emitCapturedSizes(
-      {
-        metadata: {
-          captureVersion: DDLT_SIZE_CAPTURE_VERSION,
-          capturedAt: new Date().toISOString(),
-          capturedFrom: capturedFromLocation(),
-        },
-        nodes: capturedSizes,
-      },
-      element
-    );
+  // DDLT size capture (dev / test tooling only). The capture module is loaded
+  // via dynamic import so it is never bundled into the production render path:
+  // in published builds `window.mermaidCaptureSizes` is unset, so this guard is
+  // a single property read and the import resolves to a lazily-loaded chunk that
+  // is only fetched when a developer explicitly enables capture.
+  // See layout-algorithms/ddlt/sizeCapture.ts.
+  if ((globalThis as unknown as { mermaidCaptureSizes?: boolean }).mermaidCaptureSizes) {
+    const { captureNodeSizes } = await import('./layout-algorithms/ddlt/sizeCapture.js');
+    captureNodeSizes(element, data4Layout);
   }
 
   return {
