@@ -79,7 +79,7 @@ export async function createGraphWithElements(
   );
   // Add edges to the graph.
 
-  const value = data4Layout.config.isLabelNode;
+  const value = data4Layout.config.swimlanes?.isLabelNode;
 
   if (value) {
     for (const edge of edgesToProcess) {

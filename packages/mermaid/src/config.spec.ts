@@ -53,8 +53,8 @@ describe('when working with site config', () => {
   it('should default swimlane layering options to true', () => {
     const config = configApi.getConfig();
 
-    expect(config.flowchart?.ignoreCrossLaneEdges).toBe(true);
-    expect(config.flowchart?.optimizeRanksByCrossings).toBe(true);
+    expect(config.swimlanes?.ignoreCrossLaneEdges).toBe(true);
+    expect(config.swimlanes?.optimizeRanksByCrossings).toBe(true);
   });
 
   it('should retain railroad directives after sanitization', () => {

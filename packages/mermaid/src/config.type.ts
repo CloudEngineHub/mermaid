@@ -95,11 +95,6 @@ export interface MermaidConfig {
    */
   handDrawnSeed?: number;
   /**
-   * Defines edge label as node.
-   *
-   */
-  isLabelNode?: boolean;
-  /**
    * Defines which layout algorithm to use for rendering the diagram.
    *
    */
@@ -222,6 +217,7 @@ export interface MermaidConfig {
    */
   deterministicIDSeed?: string;
   flowchart?: FlowchartDiagramConfig;
+  swimlanes?: SwimlanesDiagramConfig;
   sequence?: SequenceDiagramConfig;
   gantt?: GanttDiagramConfig;
   journey?: JourneyDiagramConfig;
@@ -331,30 +327,6 @@ export interface FlowchartDiagramConfig extends BaseDiagramConfig {
     | 'stepBefore'
     | 'rounded';
   /**
-   * Renders edge crossings as small arcs ("hops") or visible gaps so that
-   * overlapping edges are easier to read. Set to `false` to disable.
-   *
-   * Currently applied by the modern swimlanes layout pipeline. Edges
-   * rendered as curves are skipped to avoid corrupting the geometry.
-   *
-   */
-  lineHops?: boolean | ('arc' | 'gap');
-  /**
-   * Ignores edges that cross swimlane boundaries during swimlane layer assignment.
-   * This can improve rank quality for diagrams with many cross-lane links.
-   *
-   * **Only used by the experimental swimlanes layout.**
-   *
-   */
-  ignoreCrossLaneEdges?: boolean;
-  /**
-   * Enables a crossing-aware rank optimization pass for swimlane layouts.
-   *
-   * **Only used by the experimental swimlanes layout.**
-   *
-   */
-  optimizeRanksByCrossings?: boolean;
-  /**
    * Represents the padding between the labels and the shape
    *
    * **Only used in new experimental rendering.**
@@ -394,6 +366,46 @@ export interface BaseDiagramConfig {
    *
    */
   useMaxWidth?: boolean;
+}
+/**
+ * The object containing configurations specific for the swimlanes diagram type.
+ *
+ * Swimlanes reuses the flowchart renderer and flowchart config for shared
+ * options (curve, htmlLabels, spacing, …); this block holds the knobs that
+ * only affect the swimlanes layout pipeline.
+ *
+ *
+ * This interface was referenced by `MermaidConfig`'s JSON-Schema
+ * via the `definition` "SwimlanesDiagramConfig".
+ */
+export interface SwimlanesDiagramConfig extends BaseDiagramConfig {
+  /**
+   * Renders edge crossings as small arcs ("hops") or visible gaps so that
+   * overlapping edges are easier to read. Set to `false` to disable. Edges
+   * rendered as curves are skipped to avoid corrupting the geometry.
+   *
+   */
+  lineHops?: boolean | ('arc' | 'gap');
+  /**
+   * Ignores edges that cross swimlane boundaries during swimlane layer
+   * assignment. This can improve rank quality for diagrams with many
+   * cross-lane links.
+   *
+   */
+  ignoreCrossLaneEdges?: boolean;
+  /**
+   * Enables a crossing-aware rank optimization pass for swimlane layouts.
+   *
+   */
+  optimizeRanksByCrossings?: boolean;
+  /**
+   * Routes edge labels as first-class layout nodes: a dummy node is
+   * inserted for each labelled edge and the edge is split through it, so
+   * the layout reserves space for labels and routes around them. When
+   * false, edge labels are placed without participating in layout.
+   *
+   */
+  isLabelNode?: boolean;
 }
 /**
  * The object containing configurations specific for sequence diagrams

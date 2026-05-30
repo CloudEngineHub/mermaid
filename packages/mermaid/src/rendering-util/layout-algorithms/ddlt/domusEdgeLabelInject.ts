@@ -2,7 +2,7 @@ import type { Edge, LayoutData, Node, NonClusterNode } from '../../types.js';
 
 /**
  * Inject DOMUS-style edge-label dummy nodes (same topology as `createGraphWithElements` when
- * `config.isLabelNode` is true). DDLT uses this so the graph matches the browser without a DOM pass.
+ * `config.swimlanes.isLabelNode` is true). DDLT uses this so the graph matches the browser without a DOM pass.
  */
 export function injectDomusEdgeLabelNodes(data: LayoutData): void {
   const hasLabelNodes = (data.nodes ?? []).some((n: Node) =>

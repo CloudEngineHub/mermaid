@@ -107,6 +107,8 @@ const renderChart = async () => {
     mermaidConfig.look = 'neo';
     mermaidConfig.flowchart = {
       titleTopMargin: 10,
+    };
+    mermaidConfig.swimlanes = {
       ignoreCrossLaneEdges: true,
       optimizeRanksByCrossings: true,
     };

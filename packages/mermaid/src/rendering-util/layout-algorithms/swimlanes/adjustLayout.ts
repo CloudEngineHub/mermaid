@@ -54,18 +54,18 @@ export async function adjustLayout(
       endNode,
       data4Layout.diagramId
     );
-    if (edge.label && !data4Layout.config.isLabelNode) {
+    if (edge.label && !data4Layout.config.swimlanes?.isLabelNode) {
       await insertEdgeLabel(groups.rootGroups, edge);
     }
 
-    if (edge.label && !data4Layout.config.isLabelNode) {
+    if (edge.label && !data4Layout.config.swimlanes?.isLabelNode) {
       positionEdgeLabel(edge, paths);
     }
   }
 
   // Render-time post-processing: replace edge crossings with line hops.
-  // Default: 'arc'. Set flowchart.lineHops = false to opt out.
-  const lineHopsConfig = data4Layout.config?.flowchart?.lineHops;
+  // Default: 'arc'. Set swimlanes.lineHops = false to opt out.
+  const lineHopsConfig = data4Layout.config?.swimlanes?.lineHops;
   if (lineHopsConfig !== false) {
     const jumpStyle: 'arc' | 'gap' = lineHopsConfig === 'gap' ? 'gap' : 'arc';
     const edgeGeometries = data4Layout.edges

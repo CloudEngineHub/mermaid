@@ -21,13 +21,8 @@ export function runSwimlaneLayoutCore(data4Layout: LayoutData): SwimlaneDirectio
   const g = toGraphView(data4Layout);
   const nodeGap = data4Layout.config.flowchart?.nodeSpacing ?? 40;
   const layerGap = data4Layout.config.flowchart?.rankSpacing ?? 100;
-  const ignoreCrossLaneEdges =
-    (data4Layout.config as { flowchart?: { ignoreCrossLaneEdges?: boolean } }).flowchart
-      ?.ignoreCrossLaneEdges ?? true;
-  const optimizeRanksSetting = (
-    data4Layout.config as { flowchart?: { optimizeRanksByCrossings?: boolean } }
-  ).flowchart?.optimizeRanksByCrossings;
-  const optimizeRanksByCrossings = optimizeRanksSetting ?? true;
+  const ignoreCrossLaneEdges = data4Layout.config.swimlanes?.ignoreCrossLaneEdges ?? true;
+  const optimizeRanksByCrossings = data4Layout.config.swimlanes?.optimizeRanksByCrossings ?? true;
   const direction = getSwimlaneDirection(data4Layout);
 
   const { ordered, coordinates } = sugiyamaLayout(g, {
