@@ -65,10 +65,6 @@ const getStyles = (options: FlowChartStyleOptions) =>
     text-anchor: middle;
   }
 
-.swimlane.cluster rect {
-    stroke: #fcfcfc !important;
-  }
-
   .node .katex path {
     fill: #000;
     stroke: #000;

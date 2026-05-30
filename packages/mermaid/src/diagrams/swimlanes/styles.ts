@@ -1,0 +1,18 @@
+import getFlowchartStyles from '../flowchart/styles.js';
+import type { FlowChartStyleOptions } from '../flowchart/styles.js';
+
+/**
+ * Swimlanes reuses the flowchart styles and appends the lane-specific rule.
+ *
+ * The swimlane cluster shape draws its own lane border, so the generic
+ * `.cluster rect` border is suppressed by matching its stroke to the cluster
+ * background — theme-adaptive, rather than a hardcoded colour.
+ */
+const getStyles = (options: FlowChartStyleOptions): string =>
+  `${getFlowchartStyles(options)}
+  .swimlane.cluster rect {
+    stroke: ${options.clusterBkg} !important;
+  }
+`;
+
+export default getStyles;

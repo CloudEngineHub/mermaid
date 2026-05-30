@@ -11,17 +11,19 @@ import flowStyles from './styles.js';
 
 interface FlowDiagramOptions {
   defaultLayout?: string;
+  styles?: typeof flowStyles;
 }
 
 export const createFlowDiagram = ({
   defaultLayout,
+  styles = flowStyles,
 }: FlowDiagramOptions = {}): DiagramDefinition => ({
   parser: flowParser,
   get db() {
     return new FlowDB();
   },
   renderer,
-  styles: flowStyles,
+  styles,
   init: (cnf: MermaidConfig) => {
     if (!cnf.flowchart) {
       cnf.flowchart = {};
