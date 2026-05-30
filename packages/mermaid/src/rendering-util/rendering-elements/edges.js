@@ -326,7 +326,7 @@ export const positionEdgeLabel = (edge, paths) => {
 };
 
 // Swimlanes-only helper, kept module-private: it self-gates to `-to-label` edges
-// (the swimlanes isLabelNode mechanism) and is called only from insertEdge's
+// (the swimlanes edge-label waypoint mechanism) and is called only from insertEdge's
 // `layout === 'swimlanes'` branch, so it is a no-op for every other layout.
 const orthogonalizeToLabelClippedPoints = (edge, points) => {
   if (!edge?.isLabelEdge || !edge?.id?.endsWith('-to-label') || !Array.isArray(points)) {

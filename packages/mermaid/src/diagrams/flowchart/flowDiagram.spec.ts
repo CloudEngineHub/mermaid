@@ -7,11 +7,11 @@ import { createFlowDiagram } from './flowDiagram.js';
 // the renderer/parser imports that flowDiagram.ts pulls in still resolve.
 // (vitest hoists vi.mock above the imports above.)
 vi.mock('../../config.js', async (importOriginal) => {
-  const actual = await importOriginal();
+  const actual = await importOriginal<Record<string, unknown>>();
   return { ...actual, getUserDefinedConfig: vi.fn() };
 });
 vi.mock('../../diagram-api/diagramAPI.js', async (importOriginal) => {
-  const actual = await importOriginal();
+  const actual = await importOriginal<Record<string, unknown>>();
   return { ...actual, setConfig: vi.fn() };
 });
 

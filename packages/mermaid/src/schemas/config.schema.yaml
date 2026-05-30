@@ -2207,14 +2207,6 @@ $defs: # JSON Schema definition (maybe we should move these to a separate file)
           Enables a crossing-aware rank optimization pass for swimlane layouts.
         type: boolean
         default: true
-      isLabelNode:
-        description: |
-          Routes edge labels as first-class layout nodes: a dummy node is
-          inserted for each labelled edge and the edge is split through it, so
-          the layout reserves space for labels and routes around them. When
-          false, edge labels are placed without participating in layout.
-        type: boolean
-        default: false
 
   FlowchartDiagramConfig:
     title: Flowchart Diagram Config

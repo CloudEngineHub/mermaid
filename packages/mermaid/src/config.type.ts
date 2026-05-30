@@ -398,14 +398,6 @@ export interface SwimlanesDiagramConfig extends BaseDiagramConfig {
    *
    */
   optimizeRanksByCrossings?: boolean;
-  /**
-   * Routes edge labels as first-class layout nodes: a dummy node is
-   * inserted for each labelled edge and the edge is split through it, so
-   * the layout reserves space for labels and routes around them. When
-   * false, edge labels are placed without participating in layout.
-   *
-   */
-  isLabelNode?: boolean;
 }
 /**
  * The object containing configurations specific for sequence diagrams

@@ -54,11 +54,11 @@ export async function adjustLayout(
       endNode,
       data4Layout.diagramId
     );
-    if (edge.label && !data4Layout.config.swimlanes?.isLabelNode) {
+    if (edge.label) {
       await insertEdgeLabel(groups.rootGroups, edge);
     }
 
-    if (edge.label && !data4Layout.config.swimlanes?.isLabelNode) {
+    if (edge.label) {
       positionEdgeLabel(edge, paths);
     }
   }

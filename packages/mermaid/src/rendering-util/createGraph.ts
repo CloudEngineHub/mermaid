@@ -1,6 +1,6 @@
 import type { Selection } from 'd3';
 import * as graphlib from 'dagre-d3-es/src/graphlib/index.js';
-import type { LayoutData, NonClusterNode } from './types.js';
+import type { LayoutData } from './types.js';
 import { getConfig } from '../diagram-api/diagramAPI.js';
 import { insertNode } from './rendering-elements/nodes.js';
 
@@ -79,102 +79,11 @@ export async function createGraphWithElements(
   );
   // Add edges to the graph.
 
-  const value = data4Layout.config.swimlanes?.isLabelNode;
-
-  if (value) {
-    for (const edge of edgesToProcess) {
-      if (edge.label && edge.label?.length > 0) {
-        // Create a label node for the edge
-        const startNode = data4Layout.nodes.find((n) => n.id == edge.start);
-        const labelNodeId = `edge-label-${edge.start}-${edge.end}-${edge.id}`;
-        const labelNode: NonClusterNode = {
-          id: labelNodeId,
-          label: edge.label,
-          edgeStart: edge.start || '',
-          edgeEnd: edge.end || '',
-          shape: 'labelRect',
-          width: 0,
-          height: 0,
-          isEdgeLabel: true,
-          isDummy: true,
-          parentId: undefined,
-          isGroup: false,
-          layer: 0,
-          order: 0,
-          labelStyle: edge?.labelStyle?.[0] || '',
-          ...(startNode?.dir ? { dir: startNode.dir } : {}),
-        };
-
-        // Insert the label node into the DOM (only when a real container
-        // exists; headless callers keep the dummy's measured size at 0).
-        if (hasDom) {
-          const labelNodeEl = await insertNode(nodesGroup, labelNode, {
-            config,
-            dir: startNode?.dir,
-          });
-          const boundingBox = labelNodeEl.node()?.getBBox() ?? { width: 0, height: 0 };
-
-          // Update node dimensions
-          labelNode.width = boundingBox.width;
-          labelNode.height = boundingBox.height;
-
-          nodeElements.set(labelNodeId, labelNodeEl as D3Selection<SVGElement | SVGGElement>);
-        }
-
-        // Add to graph and tracking maps
-        graph.setNode(labelNodeId, { ...labelNode });
-        data4Layout.nodes.push(labelNode);
-
-        // Create two edges to replace the original one
-        const edgeToLabel = {
-          ...edge,
-          id: `${edge.id}-to-label`,
-          end: labelNodeId,
-          label: undefined,
-          isLabelEdge: true,
-          arrowTypeEnd: 'none',
-          arrowTypeStart: 'none',
-        };
-        const edgeFromLabel = {
-          ...edge,
-          id: `${edge.id}-from-label`,
-          start: labelNodeId,
-          end: edge.end,
-          label: undefined,
-          isLabelEdge: true,
-          arrowTypeStart: 'none',
-          arrowTypeEnd: 'arrow_point',
-        };
-        graph.setEdge(edgeToLabel.start!, edgeToLabel.end, { ...edgeToLabel }, edgeToLabel.id);
-        graph.setEdge(
-          edgeFromLabel.start,
-          edgeFromLabel.end!,
-          { ...edgeFromLabel },
-          edgeFromLabel.id
-        );
-        data4Layout.edges.push(edgeToLabel, edgeFromLabel);
-        const edgeIdToRemove = edge.id;
-        data4Layout.edges = data4Layout.edges.filter((edge) => edge.id !== edgeIdToRemove);
-        const indexInOriginal = data4Layout.edges.findIndex((e) => e.id === edge.id);
-        if (indexInOriginal !== -1) {
-          data4Layout.edges.splice(indexInOriginal, 1);
-        }
-      } else {
-        // Regular edge without label
-        graph.setEdge(edge.start!, edge.end!, { ...edge }, edge.id);
-        const edgeExists = data4Layout.edges.some((existingEdge) => existingEdge.id === edge.id);
-        if (!edgeExists) {
-          data4Layout.edges.push(edge);
-        }
-      }
-    }
-  } else {
-    for (const edge of edgesToProcess) {
-      graph.setEdge(edge.start!, edge.end!, { ...edge }, edge.id);
-      const edgeExists = data4Layout.edges.some((existingEdge) => existingEdge.id === edge.id);
-      if (!edgeExists) {
-        data4Layout.edges.push(edge);
-      }
+  for (const edge of edgesToProcess) {
+    graph.setEdge(edge.start!, edge.end!, { ...edge }, edge.id);
+    const edgeExists = data4Layout.edges.some((existingEdge) => existingEdge.id === edge.id);
+    if (!edgeExists) {
+      data4Layout.edges.push(edge);
     }
   }
 
