@@ -1138,6 +1138,10 @@ export interface XYChartAxisConfig {
    * Width of the axis line
    */
   axisLineWidth?: number;
+  /**
+   * Label rotation in degrees
+   */
+  labelRotation?: number;
 }
 /**
  * The object containing configurations specific for req diagrams
