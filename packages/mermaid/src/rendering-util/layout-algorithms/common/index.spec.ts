@@ -255,6 +255,25 @@ describe('createCommonLayoutRenderer', () => {
       expect(context.preparedLayout).toBe(preparedLayout);
     }
   });
+
+  it('passes custom measure results to custom paint hooks', async () => {
+    const { createCommonLayoutRenderer } = await import('./index.js');
+    const data = layout();
+    const element = { name: 'root-g' };
+    const svg = { select: vi.fn().mockReturnValue(element) };
+    const measured = { dagreGraph: 'graph' };
+
+    const render = createCommonLayoutRenderer<string, void, typeof measured>({
+      measureLayout: () => Promise.resolve(measured),
+      runLayoutCore: () => 'core-result',
+      paintLayout: (_layoutData, context, coreResult) => {
+        expect(context.measure).toBe(measured);
+        expect(coreResult).toBe('core-result');
+      },
+    });
+
+    await render(data, svg as never);
+  });
 });
 
 describe('defaultMeasureLayout', () => {

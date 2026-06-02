@@ -42,9 +42,11 @@ export interface CommonLayoutRenderContext<PreparedLayout = unknown> {
   preparedLayout?: PreparedLayout;
 }
 
-export interface CommonLayoutPaintContext<PreparedLayout = unknown>
-  extends CommonLayoutRenderContext<PreparedLayout> {
-  measure: CommonLayoutMeasure;
+export interface CommonLayoutPaintContext<
+  PreparedLayout = unknown,
+  MeasureResult = CommonLayoutMeasure,
+> extends CommonLayoutRenderContext<PreparedLayout> {
+  measure: MeasureResult;
 }
 
 export interface CommonLayoutPaintOptions {
@@ -52,7 +54,11 @@ export interface CommonLayoutPaintOptions {
   skipIntersect?: boolean | ((edge: Edge) => boolean);
 }
 
-export interface CommonLayoutRendererDefinition<CoreResult = unknown, PreparedLayout = void> {
+export interface CommonLayoutRendererDefinition<
+  CoreResult = unknown,
+  PreparedLayout = void,
+  MeasureResult = CommonLayoutMeasure,
+> {
   prepareLayout?: (
     data4Layout: LayoutData,
     context: CommonLayoutRenderContext<PreparedLayout>
@@ -60,32 +66,42 @@ export interface CommonLayoutRendererDefinition<CoreResult = unknown, PreparedLa
   measureLayout?: (
     data4Layout: LayoutData,
     context: CommonLayoutRenderContext<PreparedLayout>
-  ) => Promise<CommonLayoutMeasure>;
+  ) => Promise<MeasureResult>;
   runLayoutCore: (
     data4Layout: LayoutData,
     context: CommonLayoutRenderContext<PreparedLayout>
   ) => CoreResult | Promise<CoreResult>;
   paintLayout?: (
     data4Layout: LayoutData,
-    context: CommonLayoutPaintContext<PreparedLayout>,
+    context: CommonLayoutPaintContext<PreparedLayout, MeasureResult>,
     coreResult: CoreResult
   ) => void | Promise<void>;
   afterPaint?: (
     data4Layout: LayoutData,
-    context: CommonLayoutPaintContext<PreparedLayout>,
+    context: CommonLayoutPaintContext<PreparedLayout, MeasureResult>,
     coreResult: CoreResult
   ) => void | Promise<void>;
   paintOptions?: CommonLayoutPaintOptions;
 }
 
-export function createCommonLayoutRenderer<CoreResult = unknown, PreparedLayout = void>({
+export function createCommonLayoutRenderer<
+  CoreResult = unknown,
+  PreparedLayout = void,
+  MeasureResult = CommonLayoutMeasure,
+>({
   prepareLayout,
-  measureLayout = defaultMeasureLayout,
+  measureLayout,
   runLayoutCore,
   paintLayout,
   afterPaint,
   paintOptions,
-}: CommonLayoutRendererDefinition<CoreResult, PreparedLayout>) {
+}: CommonLayoutRendererDefinition<CoreResult, PreparedLayout, MeasureResult>) {
+  const measureLayoutFn =
+    measureLayout ??
+    (defaultMeasureLayout as unknown as NonNullable<
+      CommonLayoutRendererDefinition<CoreResult, PreparedLayout, MeasureResult>['measureLayout']
+    >);
+
   return async function render(
     data4Layout: LayoutData,
     svg: SVG,
@@ -105,14 +121,21 @@ export function createCommonLayoutRenderer<CoreResult = unknown, PreparedLayout 
     };
     renderContext.preparedLayout = await prepareLayout?.(data4Layout, renderContext);
 
-    const measure = await measureLayout(data4Layout, renderContext);
+    const measure = await measureLayoutFn(data4Layout, renderContext);
     const coreResult = await runLayoutCore(data4Layout, renderContext);
-    const paintContext: CommonLayoutPaintContext<PreparedLayout> = { ...renderContext, measure };
+    const paintContext: CommonLayoutPaintContext<PreparedLayout, MeasureResult> = {
+      ...renderContext,
+      measure,
+    };
 
     if (paintLayout) {
       await paintLayout(data4Layout, paintContext, coreResult);
     } else {
-      await paintLayoutData(data4Layout, paintContext, paintOptions);
+      await paintLayoutData(
+        data4Layout,
+        paintContext as unknown as CommonLayoutPaintContext<unknown, CommonLayoutMeasure>,
+        paintOptions
+      );
     }
     await afterPaint?.(data4Layout, paintContext, coreResult);
   };
@@ -134,7 +157,7 @@ export async function defaultMeasureLayout(
 
 export async function paintLayoutData(
   data4Layout: LayoutData,
-  { measure }: CommonLayoutPaintContext,
+  { measure }: CommonLayoutPaintContext<unknown, CommonLayoutMeasure>,
   options: CommonLayoutPaintOptions = {}
 ): Promise<void> {
   const { groups } = measure;
