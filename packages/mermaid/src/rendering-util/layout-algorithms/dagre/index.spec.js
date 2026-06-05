@@ -3,6 +3,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { select } from 'd3';
 import { Graph } from 'dagre-d3-es/src/graphlib/index.js';
 import {
+  applyDagreLayoutResult,
   getEdgesToRender,
   measureDagreLayout,
   prepareLayoutForDagre,
@@ -48,6 +49,122 @@ describe('getEdgesToRender', () => {
       flowchart: { htmlLabels: false },
       logLevel: 5,
     });
+  });
+
+  it('copies DAGRE node and edge layout back onto LayoutData', () => {
+    const graph = new Graph({ multigraph: true, compound: true });
+    graph.setGraph({ rankdir: 'TB' });
+    graph.setNode('A', { id: 'A', x: 10, y: 20, width: 30, height: 40 });
+    graph.setNode('B', { id: 'B', x: 100, y: 120, width: 30, height: 40 });
+    graph.setEdge(
+      'A',
+      'B',
+      {
+        id: 'A-B',
+        start: 'A',
+        end: 'B',
+        points: [
+          { x: 10, y: 20 },
+          { x: 100, y: 120 },
+        ],
+        x: 55,
+        y: 70,
+      },
+      'A-B'
+    );
+    const data4Layout = {
+      nodes: [
+        { id: 'A', isGroup: false },
+        { id: 'B', isGroup: false },
+      ],
+      edges: [{ id: 'A-B', start: 'A', end: 'B' }],
+    };
+
+    applyDagreLayoutResult(data4Layout, {
+      graph,
+      mergeSelfLoops: true,
+      subGraphTitleTotalMargin: 10,
+    });
+
+    expect(data4Layout.nodes[0]).toMatchObject({ x: 10, y: 25, width: 30, height: 40 });
+    expect(data4Layout.nodes[1]).toMatchObject({ x: 100, y: 125, width: 30, height: 40 });
+    expect(data4Layout.edges).toEqual([
+      expect.objectContaining({
+        id: 'A-B',
+        start: 'A',
+        end: 'B',
+        points: [
+          { x: 10, y: 25 },
+          { x: 100, y: 125 },
+        ],
+        x: 55,
+        y: 70,
+      }),
+    ]);
+  });
+
+  it('normalizes merged self-loops back onto LayoutData', () => {
+    const graph = new Graph({ multigraph: true, compound: true });
+    graph.setNode('A', { id: 'A', x: 10, y: 10, width: 20, height: 20 });
+    graph.setNode('A---A---1', { id: 'A---A---1' });
+    graph.setNode('A---A---2', { id: 'A---A---2' });
+
+    const originalEdge = {
+      id: 'A-A',
+      start: 'A',
+      end: 'A',
+      label: 'loop',
+    };
+    const segment1 = {
+      ...originalEdge,
+      id: 'A-cyclic-special-1',
+      selfLoop: { id: 'A-A', order: 0 },
+      originalEdge,
+      points: [],
+    };
+    const segmentMid = {
+      ...originalEdge,
+      id: 'A-cyclic-special-mid',
+      selfLoop: { id: 'A-A', order: 1 },
+      originalEdge,
+      points: [],
+    };
+    const segment2 = {
+      ...originalEdge,
+      id: 'A-cyclic-special-2',
+      selfLoop: { id: 'A-A', order: 2 },
+      originalEdge,
+      points: [],
+    };
+
+    graph.setEdge('A', 'A---A---1', segment1, 'A-cyclic-special-0');
+    graph.setEdge('A---A---1', 'A---A---2', segmentMid, 'A-cyclic-special-1');
+    graph.setEdge('A---A---2', 'A', segment2, 'A-cyclic-special-2');
+    const data4Layout = {
+      nodes: [{ id: 'A', isGroup: false }],
+      edges: [originalEdge],
+    };
+
+    applyDagreLayoutResult(data4Layout, {
+      graph,
+      mergeSelfLoops: true,
+      subGraphTitleTotalMargin: 0,
+    });
+
+    expect(data4Layout.edges).toHaveLength(1);
+    expect(data4Layout.edges[0]).toMatchObject({
+      id: 'A-A',
+      start: 'A',
+      end: 'A',
+      label: 'loop',
+      points: [
+        { x: -8, y: 0 },
+        { x: -8, y: -24 },
+        { x: 28, y: -24 },
+        { x: 28, y: 0 },
+      ],
+    });
+    expect(data4Layout.edges[0].selfLoop).toBeUndefined();
   });
 
   it('creates one compact render edge from self-loop layout segments', () => {
@@ -291,6 +408,9 @@ describe('getEdgesToRender', () => {
 
       expect(measuredLayout.graph.node('A').x).toEqual(expect.any(Number));
       expect(measuredLayout.graph.node('B').y).toEqual(expect.any(Number));
+      expect(data4Layout.nodes[0].x).toEqual(expect.any(Number));
+      expect(data4Layout.nodes[1].y).toEqual(expect.any(Number));
+      expect(data4Layout.edges[0].points).toEqual(expect.any(Array));
     } finally {
       restoreDom();
     }

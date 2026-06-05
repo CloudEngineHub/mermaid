@@ -37,6 +37,17 @@ const getDefaultSelfLoopSide = (rankdir = 'TB') => {
 const shouldMergeSelfLoopSegments = (diagramType) =>
   diagramType === 'flowchart' || diagramType === 'flowchart-v2' || diagramType === 'stateDiagram';
 
+const DAGRE_NODE_LAYOUT_PROPERTIES = [
+  'x',
+  'y',
+  'width',
+  'height',
+  'labelBBox',
+  'intersect',
+  'calcIntersect',
+  'diff',
+];
+
 // Use dagre's dummy self-loop placement as a hint, so loops are not always forced above the node.
 const getSelfLoopSide = (graph, node, segments, originalNodeId, rankdir) => {
   const layoutHints = [];
@@ -408,6 +419,65 @@ const runDagreGraphLayout = (graph) => {
   log.info('Graph after layout:', JSON.stringify(graphlibJson.write(graph)));
 };
 
+const normalizeDagreNode = (graph, nodeId, subGraphTitleTotalMargin) => {
+  const node = graph.node(nodeId);
+  if (!node) {
+    return undefined;
+  }
+
+  const normalizedNode = { ...node };
+  if (node?.clusterNode) {
+    normalizedNode.y = (node.y ?? 0) + subGraphTitleTotalMargin;
+  } else if (graph.children(nodeId).length > 0) {
+    normalizedNode.height = (node.height ?? 0) + subGraphTitleTotalMargin;
+  } else {
+    normalizedNode.y = (node.y ?? 0) + subGraphTitleTotalMargin / 2;
+  }
+  return normalizedNode;
+};
+
+const applyDagreNodeLayout = (targetNode, dagreNode) => {
+  DAGRE_NODE_LAYOUT_PROPERTIES.forEach((property) => {
+    if (dagreNode[property] !== undefined) {
+      targetNode[property] = dagreNode[property];
+    }
+  });
+};
+
+const normalizeDagreEdge = (edge, start, end, edgeOffsetY) => ({
+  ...edge,
+  start: edge.start ?? start,
+  end: edge.end ?? end,
+  points: (edge.points ?? []).map((point) => ({
+    ...point,
+    y: typeof point.y === 'number' ? point.y + edgeOffsetY : point.y,
+  })),
+});
+
+export const applyDagreLayoutResult = (data4Layout, measuredLayout) => {
+  const { graph, mergeSelfLoops, subGraphTitleTotalMargin = 0 } = measuredLayout;
+  const nodeById = new Map(data4Layout.nodes.map((node) => [node.id, node]));
+
+  sortNodesByHierarchy(graph).forEach((nodeId) => {
+    const targetNode = nodeById.get(nodeId);
+    if (!targetNode) {
+      return;
+    }
+
+    const dagreNode = normalizeDagreNode(graph, nodeId, subGraphTitleTotalMargin);
+    if (dagreNode) {
+      applyDagreNodeLayout(targetNode, dagreNode);
+    }
+  });
+
+  const edgeOffsetY = subGraphTitleTotalMargin / 2;
+  data4Layout.edges = getEdgesToRender(graph, edgeOffsetY, { mergeSelfLoops }).map(
+    ({ edge, start, end }) => normalizeDagreEdge(edge, start, end, edgeOffsetY)
+  );
+
+  return data4Layout;
+};
+
 const paintDagreLayoutCore = async ({
   elem,
   graph,
@@ -665,6 +735,7 @@ export const runDagreLayoutCore = (_data4Layout, context) => {
   }
 
   runDagreGraphLayout(measuredLayout.graph);
+  applyDagreLayoutResult(_data4Layout, measuredLayout);
   return measuredLayout;
 };
 
