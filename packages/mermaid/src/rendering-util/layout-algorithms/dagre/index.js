@@ -46,6 +46,7 @@ const DAGRE_NODE_LAYOUT_PROPERTIES = [
   'intersect',
   'calcIntersect',
   'diff',
+  'clusterNode',
 ];
 
 // Use dagre's dummy self-loop placement as a hint, so loops are not always forced above the node.
@@ -399,7 +400,7 @@ const measureDagreGraph = async ({
   return {
     elem,
     graph,
-    groups: { clusters, edgePaths },
+    groups: { clusters, edgePaths, edgeLabels, nodes, rootGroups: elem },
     diagramType,
     id,
     mergeSelfLoops,
@@ -739,13 +740,11 @@ export const runDagreLayoutCore = (_data4Layout, context) => {
   return measuredLayout;
 };
 
-export const paintDagreLayout = async (_data4Layout, { measure }, coreResult) => {
-  await paintDagreLayoutCore(coreResult ?? measure);
-};
-
 export const render = createCommonLayoutRenderer({
   prepareLayout: prepareLayoutForDagre,
   measureLayout: measureDagreLayout,
   runLayoutCore: runDagreLayoutCore,
-  paintLayout: paintDagreLayout,
+  paintOptions: {
+    clusterDb,
+  },
 });

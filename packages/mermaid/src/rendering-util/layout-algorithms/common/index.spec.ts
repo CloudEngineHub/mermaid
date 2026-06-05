@@ -310,8 +310,10 @@ describe('paintLayoutData', () => {
       edges: [layoutOnlyEdge, skippedEdge, renderEdge],
     });
     const measured = measure();
+    const clusterDb = new Map([[group.id, { node: group }]]);
 
     await paintLayoutData(data, { measure: measured } as never, {
+      clusterDb,
       skipEdge: (candidate) => candidate.id === skippedEdge.id,
       skipIntersect: (candidate) => candidate.id === renderEdge.id,
     });
@@ -323,13 +325,28 @@ describe('paintLayoutData', () => {
     expect(mocks.insertEdge).toHaveBeenCalledWith(
       measured.groups.edgePaths,
       { ...renderEdge },
-      {},
+      clusterDb,
       data.type,
       nodeA,
       nodeB,
       data.diagramId,
       true
     );
+  });
+
+  it('positions pre-rendered cluster nodes without inserting another cluster', async () => {
+    const { paintLayoutData } = await import('./index.js');
+    const clusterNode = node('G', { clusterNode: true, isGroup: true } as never);
+    const data = layout({
+      nodes: [clusterNode],
+      edges: [],
+    });
+    const measured = measure();
+
+    await paintLayoutData(data, { measure: measured } as never);
+
+    expect(mocks.insertCluster).not.toHaveBeenCalled();
+    expect(mocks.positionNode).toHaveBeenCalledWith(clusterNode);
   });
 
   it('inserts and positions edge labels after drawing labelled edges', async () => {

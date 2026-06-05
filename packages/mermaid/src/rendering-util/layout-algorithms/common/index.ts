@@ -29,11 +29,14 @@ type RenderedEdge = Edge & {
   endLabelRight?: string;
 };
 type EdgeRenderPath = Parameters<typeof utils.calcLabelPosition>[0];
+type ClusterDb = Map<string, { node?: LayoutData['nodes'][number] } & Record<string, unknown>>;
 
 interface EdgeRenderPaths {
   originalPath?: EdgeRenderPath;
   updatedPath?: EdgeRenderPath;
 }
+
+const EMPTY_CLUSTER_DB: ClusterDb = new Map();
 
 export interface CommonLayoutRenderContext<PreparedLayout = unknown> {
   element: D3Selection<SVGElement>;
@@ -51,6 +54,7 @@ export interface CommonLayoutPaintContext<
 }
 
 export interface CommonLayoutPaintOptions {
+  clusterDb?: ClusterDb;
   skipEdge?: (edge: Edge) => boolean;
   skipIntersect?: boolean | ((edge: Edge) => boolean);
 }
@@ -183,7 +187,9 @@ async function paintLayoutNode(
   groups: CommonLayoutMeasure['groups'],
   node: LayoutData['nodes'][number]
 ): Promise<void> {
-  if (node.isGroup) {
+  if ((node as { clusterNode?: boolean }).clusterNode) {
+    positionNode(node);
+  } else if (node.isGroup) {
     await insertCluster(groups.clusters, node);
   } else {
     positionNode(node);
@@ -214,7 +220,7 @@ async function paintLayoutEdge(
   const paths = insertEdge(
     groups.edgePaths,
     { ...edge },
-    {},
+    options.clusterDb ?? EMPTY_CLUSTER_DB,
     data4Layout.type,
     getRenderedNode(edge.start, nodeById),
     getRenderedNode(edge.end, nodeById),

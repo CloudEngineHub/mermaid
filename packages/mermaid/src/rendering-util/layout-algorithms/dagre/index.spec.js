@@ -457,4 +457,28 @@ C --> C`
       restoreDom();
     }
   });
+
+  it('renders a flowchart subgraph through the shared paint path', async () => {
+    const restoreDom = setupDom();
+
+    try {
+      const { svg } = await mermaidAPI.render(
+        'shared-paint-subgraph-test',
+        `flowchart TD
+subgraph clusterA[Cluster A]
+A --> B
+end
+clusterA --> C`
+      );
+      const dom = new JSDOM(svg);
+
+      expect(dom.window.document.querySelectorAll('.cluster')).toHaveLength(1);
+      expect(dom.window.document.querySelectorAll('.node')).toHaveLength(3);
+      expect(dom.window.document.querySelectorAll('.edgePaths path.flowchart-link')).toHaveLength(
+        2
+      );
+    } finally {
+      restoreDom();
+    }
+  });
 });
