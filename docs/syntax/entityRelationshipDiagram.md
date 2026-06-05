@@ -541,6 +541,10 @@ erDiagram
 > Subgraphs are always referenced by their id, never by their title.
 >
 > This is important when defining relationships involving subgraphs.
+>
+> **If a subgraph id contains spaces, it must be referenced using quotes:**
+>
+> `"Customer Domain" ||--o{ ORDER : contains`
 
 #### Relationships involving subgraphs
 

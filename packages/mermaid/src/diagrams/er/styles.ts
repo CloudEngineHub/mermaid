@@ -110,7 +110,6 @@ const getStyles: DiagramStylesProvider = (options) => {
     background-color: ${fade(options.tertiaryColor, 0.5)};
   }
 
-  /* Cluster (subgraph) styling to match flowchart defaults */
   .cluster rect {
     fill: ${options.clusterBkg ?? options.mainBkg};
     stroke: ${options.clusterBorder ?? options.nodeBorder};

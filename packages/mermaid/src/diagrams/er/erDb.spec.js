@@ -64,6 +64,57 @@ describe('ErDB subgraph behavior', () => {
     });
   });
 
+  describe('getData cluster behavior', () => {
+    it('returns nested cluster nodes with correct parent relationships', () => {
+      const outerId = db.addSubGraph({ text: 'sub1' }, ['sub1_1', 'A'], {
+        text: 'Group One',
+        type: 'text',
+      });
+      const innerId = db.addSubGraph({ text: 'sub1_1' }, ['B'], {
+        text: 'Group Two',
+        type: 'text',
+      });
+
+      db.addEntity('A');
+      db.addEntity('B');
+
+      const data = db.getData();
+      const outerCluster = data.nodes.find((node) => node.id === outerId);
+      const innerCluster = data.nodes.find((node) => node.id === innerId);
+      const customerNode = data.nodes.find((node) => node.label === 'A');
+      const accountNode = data.nodes.find((node) => node.label === 'B');
+
+      expect(data.nodes).toHaveLength(4);
+      expect(outerCluster).toBeDefined();
+      expect(innerCluster).toBeDefined();
+      expect(outerCluster.isGroup).toBe(true);
+      expect(innerCluster.isGroup).toBe(true);
+      expect(outerCluster.label).toBe('Group One');
+      expect(innerCluster.label).toBe('Group Two');
+      expect(innerCluster.parentId).toBe(outerId);
+      expect(customerNode.parentId).toBe(outerId);
+      expect(customerNode.isGroup).toBe(false);
+      expect(accountNode.parentId).toBe(innerId);
+      expect(accountNode.isGroup).toBe(false);
+    });
+
+    it('returns edges connected to subgraphs', () => {
+      db.addSubGraph({ text: 'sub1' }, ['A'], { text: 'Group One', type: 'text' });
+
+      db.addEntity('A');
+      db.addEntity('B');
+
+      const relSpec = { cardA: 'ONLY_ONE', relType: 'IDENTIFYING', cardB: 'ZERO_OR_MORE' };
+      db.addRelationship('sub1', 'roleA', 'B', relSpec);
+
+      const data = db.getData();
+
+      expect(data.edges).toHaveLength(1);
+      expect(data.edges[0].start).toBe('sub1');
+      expect(data.edges[0].end).toBe(db.getEntity('B').id);
+    });
+  });
+
   describe('CssStyles and classes behavior', () => {
     it('applies classes and styles to subgraphs', () => {
       db.addSubGraph({ text: 'sub1' }, ['A'], { text: 'sub1', type: 'text' });

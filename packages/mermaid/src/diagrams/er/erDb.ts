@@ -20,11 +20,10 @@ export class ErDB implements DiagramDB {
   private entities = new Map<string, EntityNode>();
   private relationships: Relationship[] = [];
   private classes = new Map<string, EntityClass>();
-  public subgraphDepth = 0;
+  public subgraphDepth = 0; // Public because JISON yy actions access it dynamically.
   private subGraphs: ErSubGraph[] = [];
   private subGraphLookup = new Map<string, ErSubGraph>();
   private subCount = 0;
-  private config = getConfig();
   private direction = 'TB';
 
   private Cardinality = {
@@ -234,9 +233,6 @@ export class ErDB implements DiagramDB {
   ) {
     let id: string | undefined = _id.text.trim();
     let title = _title.text;
-    if (_id === _title && /\s/.exec(_title.text)) {
-      id = undefined;
-    }
 
     const uniq = (a: any[]) => {
       const prims: any = { boolean: {}, number: {}, string: {} };
@@ -302,11 +298,7 @@ export class ErDB implements DiagramDB {
 
   public setClass(ids: string[], classNames: string[]) {
     for (const id of ids) {
-      // Ensure entity exists so classes applied even if class statement comes before entity
-      let entity = this.entities.get(id);
-      if (!entity) {
-        entity = this.addEntity(id);
-      }
+      const entity = this.entities.get(id);
       if (entity) {
         for (const className of classNames) {
           entity.cssClasses += ' ' + className;
@@ -339,7 +331,7 @@ export class ErDB implements DiagramDB {
    * Filter out nodes that are already part of another subgraph,
    * keeping subgraph membership unique.
    */
-  public makeUniq(subGraph: ErSubGraph, allSubgraphs: ErSubGraph[]) {
+  private makeUniq(subGraph: ErSubGraph, allSubgraphs: ErSubGraph[]) {
     const existingNodes = this.subgraphNodeCache(allSubgraphs);
     const res: string[] = [];
     subGraph.nodes.forEach((_id, pos) => {
@@ -351,7 +343,7 @@ export class ErDB implements DiagramDB {
   }
 
   private sanitizeText(txt: string) {
-    return common.sanitizeText(txt, this.config);
+    return common.sanitizeText(txt, getConfig());
   }
 
   private sanitizeNodeLabelType(labelType?: string) {
