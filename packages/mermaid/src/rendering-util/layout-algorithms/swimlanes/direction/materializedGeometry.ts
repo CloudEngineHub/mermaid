@@ -1169,6 +1169,385 @@ export function swapDestinationTerminalTailsToReduceCrossings(
   }
 }
 
+// Crossing cleanup sometimes requires reordering a small channel bundle as a
+// transaction: moving either rail alone is neutral or worse, while swapping the
+// shared external tracks removes crossings. Keep the search local and bounded,
+// but score it globally so crossing count stays the first acceptance criterion.
+export function reassignCrossingExternalRailChannels(
+  edges: any[],
+  nodeByIdMap: Map<string, any>
+): void {
+  const BUFFER = 2;
+  const RAIL_CHANNEL_GAP = 12;
+  const MAX_ITERATIONS = 4;
+  const MAX_EXHAUSTIVE_COMPONENT = 6;
+
+  type RailAxis = 'horizontal' | 'vertical';
+
+  interface ExternalRail {
+    edge: any;
+    points: PointLite[];
+    segmentIndex: number;
+    axis: RailAxis;
+    side: RectSide;
+    coord: number;
+    min: number;
+    max: number;
+  }
+
+  const { realNodeRects, labelNodeRects: labelRects } = collectNodeRectEntries(
+    nodeByIdMap.values()
+  );
+  const visibleEdges = edges.filter((edge) => !(edge as { isLayoutOnly?: boolean }).isLayoutOnly);
+
+  const replacementPointsFor = (
+    edge: any,
+    replacements: Map<any, PointLite[]> = new Map()
+  ): PointLite[] =>
+    dedupeConsecutivePoints(
+      replacements.get(edge) ?? (edge as { points?: PointLite[] }).points ?? []
+    );
+
+  const strictCrossingCount = (replacements: Map<any, PointLite[]> = new Map()): number => {
+    let count = 0;
+    for (let i = 0; i < visibleEdges.length; i++) {
+      const firstSegments = segmentsFor(replacementPointsFor(visibleEdges[i], replacements));
+      for (let j = i + 1; j < visibleEdges.length; j++) {
+        const secondSegments = segmentsFor(replacementPointsFor(visibleEdges[j], replacements));
+        for (const firstSegment of firstSegments) {
+          for (const secondSegment of secondSegments) {
+            if (
+              orthogonalSegmentsStrictlyCross(
+                firstSegment.a,
+                firstSegment.b,
+                secondSegment.a,
+                secondSegment.b,
+                EPS_LOCAL
+              )
+            ) {
+              count++;
+            }
+          }
+        }
+      }
+    }
+    return count;
+  };
+
+  const totalBends = (replacements: Map<any, PointLite[]> = new Map()): number =>
+    visibleEdges.reduce(
+      (sum, edge) => sum + countOrthogonalBends(replacementPointsFor(edge, replacements)),
+      0
+    );
+
+  const endpointRectsFor = (edge: any): { src: RectLite; dst: RectLite } | undefined => {
+    const srcId = (edge as { start?: string }).start;
+    const dstId = (edge as { end?: string }).end;
+    const srcNode = srcId ? nodeByIdMap.get(srcId) : undefined;
+    const dstNode = dstId ? nodeByIdMap.get(dstId) : undefined;
+    const src = srcNode ? rectOfNodeBounds(srcNode) : undefined;
+    const dst = dstNode ? rectOfNodeBounds(dstNode) : undefined;
+    return src && dst ? { src, dst } : undefined;
+  };
+
+  const externalRailForSegment = (
+    edge: any,
+    points: PointLite[],
+    segment: SegmentLite
+  ): ExternalRail | undefined => {
+    if (segment.index <= 0 || segment.index + 1 >= points.length - 1) {
+      return undefined;
+    }
+
+    const endpointRects = endpointRectsFor(edge);
+    if (!endpointRects) {
+      return undefined;
+    }
+
+    if (segment.vertical) {
+      const coord = segment.a.x;
+      const leftBound = Math.min(endpointRects.src.left, endpointRects.dst.left);
+      const rightBound = Math.max(endpointRects.src.right, endpointRects.dst.right);
+      const side: RectSide | undefined =
+        coord < leftBound - EPS_LOCAL
+          ? 'left'
+          : coord > rightBound + EPS_LOCAL
+            ? 'right'
+            : undefined;
+      if (!side) {
+        return undefined;
+      }
+      return {
+        edge,
+        points,
+        segmentIndex: segment.index,
+        axis: 'vertical',
+        side,
+        coord,
+        min: Math.min(segment.a.y, segment.b.y),
+        max: Math.max(segment.a.y, segment.b.y),
+      };
+    }
+
+    if (segment.horizontal) {
+      const coord = segment.a.y;
+      const topBound = Math.min(endpointRects.src.top, endpointRects.dst.top);
+      const bottomBound = Math.max(endpointRects.src.bottom, endpointRects.dst.bottom);
+      const side: RectSide | undefined =
+        coord < topBound - EPS_LOCAL
+          ? 'top'
+          : coord > bottomBound + EPS_LOCAL
+            ? 'bottom'
+            : undefined;
+      if (!side) {
+        return undefined;
+      }
+      return {
+        edge,
+        points,
+        segmentIndex: segment.index,
+        axis: 'horizontal',
+        side,
+        coord,
+        min: Math.min(segment.a.x, segment.b.x),
+        max: Math.max(segment.a.x, segment.b.x),
+      };
+    }
+
+    return undefined;
+  };
+
+  const collectExternalRails = (): ExternalRail[] => {
+    const rails: ExternalRail[] = [];
+    for (const edge of visibleEdges) {
+      const points = replacementPointsFor(edge);
+      for (const segment of segmentsFor(points)) {
+        const rail = externalRailForSegment(edge, points, segment);
+        if (rail) {
+          rails.push(rail);
+        }
+      }
+    }
+    return rails;
+  };
+
+  const railsInteract = (a: ExternalRail, b: ExternalRail): boolean =>
+    a.edge !== b.edge &&
+    a.axis === b.axis &&
+    a.side === b.side &&
+    overlapLength(a.min, a.max, b.min, b.max) >= MIN_SHARED;
+
+  const connectedComponents = (rails: ExternalRail[]): ExternalRail[][] => {
+    const result: ExternalRail[][] = [];
+    const seen = new Set<ExternalRail>();
+    for (const rail of rails) {
+      if (seen.has(rail)) {
+        continue;
+      }
+      const queue = [rail];
+      const component: ExternalRail[] = [];
+      seen.add(rail);
+      while (queue.length > 0) {
+        const current = queue.pop()!;
+        component.push(current);
+        for (const next of rails) {
+          if (!seen.has(next) && railsInteract(current, next)) {
+            seen.add(next);
+            queue.push(next);
+          }
+        }
+      }
+      if (component.length > 1) {
+        result.push(component);
+      }
+    }
+    return result;
+  };
+
+  const uniqueCoordsFor = (component: ExternalRail[]): number[] => {
+    const coords: number[] = [];
+    for (const rail of component) {
+      if (!coords.some((coord) => Math.abs(coord - rail.coord) < EPS_LOCAL)) {
+        coords.push(rail.coord);
+      }
+    }
+
+    while (coords.length < component.length) {
+      const min = Math.min(...coords);
+      const max = Math.max(...coords);
+      const side = component[0].side;
+      coords.push(
+        side === 'left' || side === 'top'
+          ? min - RAIL_CHANNEL_GAP * (component.length - coords.length)
+          : max + RAIL_CHANNEL_GAP * (component.length - coords.length)
+      );
+    }
+    return coords;
+  };
+
+  const coordinateAssignmentsFor = (component: ExternalRail[]): number[][] => {
+    const current = component.map((rail) => rail.coord);
+    const coords = uniqueCoordsFor(component);
+    const assignments: number[][] = [];
+
+    if (component.length <= MAX_EXHAUSTIVE_COMPONENT) {
+      const used = new Array(coords.length).fill(false);
+      const next: number[] = [];
+      const visit = () => {
+        if (next.length === component.length) {
+          if (next.some((coord, index) => Math.abs(coord - current[index]) >= EPS_LOCAL)) {
+            assignments.push([...next]);
+          }
+          return;
+        }
+        for (const [i, coord] of coords.entries()) {
+          if (used[i]) {
+            continue;
+          }
+          used[i] = true;
+          next.push(coord);
+          visit();
+          next.pop();
+          used[i] = false;
+        }
+      };
+      visit();
+      return assignments;
+    }
+
+    for (let i = 0; i < current.length; i++) {
+      for (let j = i + 1; j < current.length; j++) {
+        const assignment = [...current];
+        [assignment[i], assignment[j]] = [assignment[j], assignment[i]];
+        assignments.push(assignment);
+      }
+    }
+    return assignments;
+  };
+
+  const replacementsForAssignment = (
+    component: ExternalRail[],
+    assignment: number[]
+  ): Map<any, PointLite[]> | undefined => {
+    const draftByEdge = new Map<any, PointLite[]>();
+    for (const [i, rail] of component.entries()) {
+      const coord = assignment[i];
+      const points =
+        draftByEdge.get(rail.edge) ?? rail.points.map((point) => ({ x: point.x, y: point.y }));
+      if (rail.axis === 'vertical') {
+        points[rail.segmentIndex].x = coord;
+        points[rail.segmentIndex + 1].x = coord;
+      } else {
+        points[rail.segmentIndex].y = coord;
+        points[rail.segmentIndex + 1].y = coord;
+      }
+      draftByEdge.set(rail.edge, points);
+    }
+
+    const replacements = new Map<any, PointLite[]>();
+    for (const [edge, points] of draftByEdge) {
+      const simplified = simplifyPolyline(dedupeConsecutivePoints(points));
+      if (segmentsFor(simplified).length !== simplified.length - 1) {
+        return undefined;
+      }
+      replacements.set(edge, simplified);
+    }
+    return replacements;
+  };
+
+  const candidateIsSafe = (replacements: Map<any, PointLite[]>): boolean => {
+    for (const [edge, points] of replacements) {
+      const endpointIds = [
+        (edge as { start?: string }).start,
+        (edge as { end?: string }).end,
+      ].filter((id): id is string => Boolean(id));
+      for (const segment of segmentsFor(points)) {
+        if (segmentHitsAnyRect(segment.a, segment.b, realNodeRects, endpointIds, -BUFFER)) {
+          return false;
+        }
+        if (segmentHitsAnyRect(segment.a, segment.b, labelRects, [], -BUFFER)) {
+          return false;
+        }
+      }
+    }
+
+    for (let i = 0; i < visibleEdges.length; i++) {
+      const first = visibleEdges[i];
+      const firstChanged = replacements.has(first);
+      const firstSegments = segmentsFor(replacementPointsFor(first, replacements));
+      for (let j = i + 1; j < visibleEdges.length; j++) {
+        const second = visibleEdges[j];
+        if (!firstChanged && !replacements.has(second)) {
+          continue;
+        }
+        const secondSegments = segmentsFor(replacementPointsFor(second, replacements));
+        for (const firstSegment of firstSegments) {
+          for (const secondSegment of secondSegments) {
+            if (sameAxisSegmentOverlapLength(firstSegment, secondSegment, 0.5) >= MIN_SHARED) {
+              return false;
+            }
+          }
+        }
+      }
+    }
+
+    return true;
+  };
+
+  for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
+    const currentCrossings = strictCrossingCount();
+    if (currentCrossings === 0) {
+      return;
+    }
+
+    let bestReplacements: Map<any, PointLite[]> | undefined;
+    let bestCrossings = currentCrossings;
+    let bestBends = totalBends();
+    let bestDisplacement = Number.POSITIVE_INFINITY;
+
+    for (const component of connectedComponents(collectExternalRails())) {
+      for (const assignment of coordinateAssignmentsFor(component)) {
+        const replacements = replacementsForAssignment(component, assignment);
+        if (!replacements || !candidateIsSafe(replacements)) {
+          continue;
+        }
+
+        const candidateCrossings = strictCrossingCount(replacements);
+        if (candidateCrossings >= currentCrossings) {
+          continue;
+        }
+        const candidateBends = totalBends(replacements);
+        const candidateDisplacement = component.reduce(
+          (sum, rail, index) => sum + Math.abs(assignment[index] - rail.coord),
+          0
+        );
+
+        if (
+          candidateCrossings > bestCrossings ||
+          (candidateCrossings === bestCrossings &&
+            (candidateBends > bestBends ||
+              (candidateBends === bestBends && candidateDisplacement >= bestDisplacement)))
+        ) {
+          continue;
+        }
+
+        bestReplacements = replacements;
+        bestCrossings = candidateCrossings;
+        bestBends = candidateBends;
+        bestDisplacement = candidateDisplacement;
+      }
+    }
+
+    if (!bestReplacements) {
+      return;
+    }
+
+    for (const [edge, points] of bestReplacements) {
+      (edge as { points: PointLite[] }).points = points;
+    }
+  }
+}
+
 export function resolveRenderedOrthogonalCrossings(
   edges: any[],
   nodeByIdMap: Map<string, any>

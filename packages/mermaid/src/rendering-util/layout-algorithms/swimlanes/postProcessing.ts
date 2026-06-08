@@ -12,6 +12,7 @@ import {
   collapseRedundantRectangularDoglegs,
   liftObstacleHuggingSameSideRails,
   liftTopLaneTitleBandsAboveRails,
+  reassignCrossingExternalRailChannels,
   resolveRenderedOrthogonalCrossings,
   separateSharedRenderedTerminalLanes,
   shiftLeftLaneTitleBandsLeftOfRails,
@@ -108,6 +109,7 @@ export function postProcessSwimlaneLayout(layout: LayoutData, direction?: string
 
   const finalizeRenderedEdges = (): void => {
     resolveRenderedOrthogonalCrossings(edges, nodeByIdMap);
+    reassignCrossingExternalRailChannels(edges, nodeByIdMap);
     anchorLabelsToPolyline(edges, nodeByIdMap);
     prepareEdgeEndpointsForRenderer(edges, nodeByIdMap);
   };

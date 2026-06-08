@@ -3,6 +3,7 @@ import {
   collapseRedundantRectangularDoglegs,
   liftObstacleHuggingSameSideRails,
   liftTopLaneTitleBandsAboveRails,
+  reassignCrossingExternalRailChannels,
   separateSharedRenderedTerminalLanes,
   shiftLeftLaneTitleBandsLeftOfRails,
   swapDestinationTerminalTailsToReduceCrossings,
@@ -313,5 +314,48 @@ describe('materialized render geometry cleanup', () => {
     expect(strictCrossingCount(edges)).toBe(0);
     expect(edges[0].points.at(-1)).toEqual(dExitRightPort);
     expect(edges[1].points.at(-1)).toEqual(cExitTopPort);
+  });
+
+  it('reassigns overlapping external rail channels as a crossing-minimizing bundle', () => {
+    const nodeById = new Map<string, any>([
+      ['26', { id: '26', x: -22, y: 664, width: 116, height: 64 }],
+      ['27', { id: '27', x: -22, y: 1602, width: 116, height: 116 }],
+      ['28', { id: '28', x: -22, y: 1050, width: 116, height: 80 }],
+    ]);
+    const edges: any[] = [
+      {
+        id: 'L_26_27_0',
+        start: '26',
+        end: '27',
+        points: [
+          { x: -80, y: 664 },
+          { x: -100, y: 664 },
+          { x: -100, y: 1660 },
+          { x: -80, y: 1660 },
+        ],
+      },
+      {
+        id: 'L_27_28_0',
+        start: '27',
+        end: '28',
+        points: [
+          { x: 36, y: 1544 },
+          { x: 65, y: 1544 },
+          { x: 65, y: 1467 },
+          { x: -126.4, y: 1467 },
+          { x: -126.4, y: 1132 },
+          { x: 36, y: 1132 },
+          { x: 36, y: 1050 },
+        ],
+      },
+    ];
+
+    expect(strictCrossingCount(edges)).toBe(2);
+
+    reassignCrossingExternalRailChannels(edges, nodeById);
+
+    expect(strictCrossingCount(edges)).toBe(0);
+    expect(edges[0].points[1].x).toBe(-126.4);
+    expect(edges[1].points[3].x).toBe(-100);
   });
 });
