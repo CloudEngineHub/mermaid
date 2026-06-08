@@ -11,6 +11,7 @@ import { collapseShortTerminalStub } from './direction/terminalStub.js';
 import {
   collapseRedundantRectangularDoglegs,
   liftObstacleHuggingSameSideRails,
+  liftTopLaneTitleBandsAboveRails,
   resolveRenderedOrthogonalCrossings,
   separateSharedRenderedTerminalLanes,
   swapDestinationTerminalTailsToReduceCrossings,
@@ -98,6 +99,11 @@ export function postProcessSwimlaneLayout(layout: LayoutData, direction?: string
   // Same-side rails can be routed just inside a taller intervening node's
   // border. Lift those rails outside the blocker before crossing cleanup.
   liftObstacleHuggingSameSideRails(edges, nodeByIdMap);
+
+  // Swimlane title bands are visual headers, not routing obstacles. If an
+  // already-safe top rail crosses the title section, raise the aligned title
+  // bands above that rail instead of lengthening the edge route.
+  liftTopLaneTitleBandsAboveRails(edges, nodeByIdMap);
 
   // Some shared-destination crossings only improve when two terminal ports
   // exchange places together. Try that bounded transaction before falling back

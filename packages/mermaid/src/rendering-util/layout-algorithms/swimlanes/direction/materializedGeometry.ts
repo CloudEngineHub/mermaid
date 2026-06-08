@@ -20,7 +20,7 @@ import {
   segmentHitsAnyRect,
   simplifyPolyline,
 } from './geometry.js';
-import type { OrthogonalSegment, Point, RectBounds, RectEntry, RectSide } from './geometry.js';
+import type { OrthogonalSegment, Point, RectBounds, RectSide } from './geometry.js';
 
 const EPS_LOCAL = 1e-3;
 const MIN_SHARED = 8;
@@ -512,33 +512,6 @@ export function liftObstacleHuggingSameSideRails(
   const { realNodeRects, labelNodeRects: labelRects } = collectNodeRectEntries(
     nodeByIdMap.values()
   );
-  const groupTitleRects: RectEntry[] = [];
-  for (const node of nodeByIdMap.values()) {
-    if (!(node as { isGroup?: boolean }).isGroup) {
-      continue;
-    }
-    const rect = (node as { groupTitleRect?: Partial<RectBounds> }).groupTitleRect;
-    if (
-      !rect ||
-      typeof rect.left !== 'number' ||
-      typeof rect.right !== 'number' ||
-      typeof rect.top !== 'number' ||
-      typeof rect.bottom !== 'number' ||
-      !Number.isFinite(rect.left) ||
-      !Number.isFinite(rect.right) ||
-      !Number.isFinite(rect.top) ||
-      !Number.isFinite(rect.bottom) ||
-      rect.right <= rect.left ||
-      rect.bottom <= rect.top
-    ) {
-      continue;
-    }
-    groupTitleRects.push({
-      id: String((node as { id?: string }).id ?? ''),
-      rect: { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom },
-    });
-  }
-  const railBlockerRects = [...realNodeRects, ...groupTitleRects];
   const visibleEdges = edges.filter((edge) => !(edge as { isLayoutOnly?: boolean }).isLayoutOnly);
 
   const pointsFor = (edge: any, replacementEdge?: any, replacement?: PointLite[]): PointLite[] =>
@@ -604,7 +577,7 @@ export function liftObstacleHuggingSameSideRails(
     const endpointIds = [(edge as { start?: string }).start, (edge as { end?: string }).end].filter(
       (id): id is string => Boolean(id)
     );
-    return railBlockerRects.filter((entry) => {
+    return realNodeRects.filter((entry) => {
       if (endpointIds.includes(entry.id)) {
         return false;
       }
@@ -723,6 +696,125 @@ export function liftObstacleHuggingSameSideRails(
     if (!fixed) {
       return;
     }
+  }
+}
+
+export function liftTopLaneTitleBandsAboveRails(edges: any[], nodeByIdMap: Map<string, any>): void {
+  const CLEARANCE = 4;
+
+  interface LaneTitle {
+    node: any;
+    rect: RectLite;
+  }
+
+  const validTitleRect = (node: any): RectLite | undefined => {
+    const rect = (node as { groupTitleRect?: Partial<RectBounds> }).groupTitleRect;
+    if (
+      !rect ||
+      typeof rect.left !== 'number' ||
+      typeof rect.right !== 'number' ||
+      typeof rect.top !== 'number' ||
+      typeof rect.bottom !== 'number' ||
+      !Number.isFinite(rect.left) ||
+      !Number.isFinite(rect.right) ||
+      !Number.isFinite(rect.top) ||
+      !Number.isFinite(rect.bottom) ||
+      rect.right <= rect.left ||
+      rect.bottom <= rect.top
+    ) {
+      return undefined;
+    }
+    return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom };
+  };
+
+  const topLaneTitleFor = (node: any): LaneTitle | undefined => {
+    if (!(node as { isGroup?: boolean }).isGroup || (node as { parentId?: unknown }).parentId) {
+      return undefined;
+    }
+    const rawDirection = (node as { direction?: unknown }).direction;
+    const direction = typeof rawDirection === 'string' ? rawDirection.toUpperCase() : '';
+    if (direction === 'LR' || direction === 'RL' || direction === 'BT') {
+      return undefined;
+    }
+    const rect = validTitleRect(node);
+    const y = (node as { y?: number }).y;
+    const height = (node as { height?: number }).height;
+    if (
+      !rect ||
+      typeof y !== 'number' ||
+      typeof height !== 'number' ||
+      !Number.isFinite(y) ||
+      !Number.isFinite(height) ||
+      height <= 0
+    ) {
+      return undefined;
+    }
+    const laneTop = y - height / 2;
+    const titleWidth = rect.right - rect.left;
+    const titleHeight = rect.bottom - rect.top;
+    if (titleHeight <= 0 || titleWidth < titleHeight || Math.abs(rect.top - laneTop) > 1) {
+      return undefined;
+    }
+    return { node, rect };
+  };
+
+  const horizontalSegmentIntersectsTitle = (segment: SegmentLite, rect: RectLite): boolean => {
+    if (!segment.horizontal) {
+      return false;
+    }
+    const y = segment.a.y;
+    if (y <= rect.top + EPS_LOCAL || y >= rect.bottom - EPS_LOCAL) {
+      return false;
+    }
+    return overlapLength(segment.a.x, segment.b.x, rect.left, rect.right) >= MIN_SHARED;
+  };
+
+  const lanes = [...nodeByIdMap.values()]
+    .map(topLaneTitleFor)
+    .filter((lane): lane is LaneTitle => Boolean(lane));
+  if (lanes.length === 0) {
+    return;
+  }
+
+  let topDelta = 0;
+  for (const edge of edges) {
+    if ((edge as { isLayoutOnly?: boolean }).isLayoutOnly) {
+      continue;
+    }
+    const points = dedupeConsecutivePoints((edge as { points?: PointLite[] }).points ?? []);
+    for (const segment of segmentsFor(points)) {
+      for (const lane of lanes) {
+        if (!horizontalSegmentIntersectsTitle(segment, lane.rect)) {
+          continue;
+        }
+        topDelta = Math.max(topDelta, lane.rect.bottom - segment.a.y + CLEARANCE);
+      }
+    }
+  }
+
+  if (topDelta <= EPS_LOCAL) {
+    return;
+  }
+
+  for (const lane of lanes) {
+    const y = (lane.node as { y?: number }).y;
+    const height = (lane.node as { height?: number }).height;
+    if (
+      typeof y !== 'number' ||
+      typeof height !== 'number' ||
+      !Number.isFinite(y) ||
+      !Number.isFinite(height) ||
+      height <= 0
+    ) {
+      continue;
+    }
+    lane.node.y = y - topDelta / 2;
+    lane.node.height = height + topDelta;
+    lane.node.groupTitleRect = {
+      ...lane.rect,
+      top: lane.rect.top - topDelta,
+      bottom: lane.rect.bottom - topDelta,
+    };
   }
 }
 

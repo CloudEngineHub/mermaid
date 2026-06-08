@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   collapseRedundantRectangularDoglegs,
   liftObstacleHuggingSameSideRails,
+  liftTopLaneTitleBandsAboveRails,
   separateSharedRenderedTerminalLanes,
   swapDestinationTerminalTailsToReduceCrossings,
 } from '../direction/materializedGeometry.js';
@@ -131,14 +132,6 @@ describe('materialized render geometry cleanup', () => {
       ['26', { id: '26', x: -166, y: 54, width: 232, height: 66 }],
       ['27', { id: '27', x: 830, y: 54, width: 232, height: 66 }],
       ['28', { id: '28', x: 166, y: 54, width: 232, height: 108 }],
-      [
-        'General_Manager',
-        {
-          id: 'General_Manager',
-          isGroup: true,
-          groupTitleRect: { left: 0, right: 332, top: -36, bottom: 0 },
-        },
-      ],
     ]);
     const edges: any[] = [
       {
@@ -158,10 +151,59 @@ describe('materialized render geometry cleanup', () => {
 
     expect(edges[0].points).toEqual([
       { x: -166, y: 21 },
-      { x: -166, y: -56 },
-      { x: 830, y: -56 },
+      { x: -166, y: -20 },
+      { x: 830, y: -20 },
       { x: 830, y: 21 },
     ]);
+  });
+
+  it('raises top lane title bands above a clear same-side rail', () => {
+    const nodeById = new Map<string, any>([
+      ['26', { id: '26', x: -166, y: 54, width: 232, height: 66 }],
+      ['27', { id: '27', x: 830, y: 54, width: 232, height: 66 }],
+      ['28', { id: '28', x: 166, y: 54, width: 232, height: 108 }],
+      [
+        'General_Manager',
+        {
+          id: 'General_Manager',
+          isGroup: true,
+          direction: 'TD',
+          x: 166,
+          y: 54,
+          width: 996,
+          height: 180,
+          groupTitleRect: { left: -332, right: 664, top: -36, bottom: -15 },
+        },
+      ],
+    ]);
+    const edges: any[] = [
+      {
+        id: 'L_26_27_0',
+        start: '26',
+        end: '27',
+        points: [
+          { x: -166, y: 21 },
+          { x: -166, y: 1 },
+          { x: 830, y: 1 },
+          { x: 830, y: 21 },
+        ],
+      },
+    ];
+
+    liftObstacleHuggingSameSideRails(edges, nodeById);
+    liftTopLaneTitleBandsAboveRails(edges, nodeById);
+
+    expect(edges[0].points).toEqual([
+      { x: -166, y: 21 },
+      { x: -166, y: -20 },
+      { x: 830, y: -20 },
+      { x: 830, y: 21 },
+    ]);
+    expect(nodeById.get('General_Manager')).toMatchObject({
+      y: 49.5,
+      height: 189,
+      groupTitleRect: { left: -332, right: 664, top: -45, bottom: -24 },
+    });
   });
 
   it('swaps shared destination terminal tails when both swaps remove a crossing', () => {

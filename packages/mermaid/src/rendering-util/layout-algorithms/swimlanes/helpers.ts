@@ -49,6 +49,9 @@ export interface WriteBackOptions {
   nodeGap?: number;
 }
 
+// Captured swimlane fixtures use 21px as the stable single-line label height.
+const TOP_LANE_TITLE_BAND_HEIGHT = 21;
+
 function assignTopLaneTitleRect(lane: Node): void {
   const { x, y, width, height } = lane;
   const contentTop = (lane as { swimlaneContentTop?: unknown }).swimlaneContentTop;
@@ -71,7 +74,9 @@ function assignTopLaneTitleRect(lane: Node): void {
   }
 
   const top = y - height / 2;
-  const bottom = Math.min(contentTop, y + height / 2);
+  const headerBottom = Math.min(contentTop, y + height / 2);
+  const titleHeight = Math.min(TOP_LANE_TITLE_BAND_HEIGHT, Math.max(0, headerBottom - top));
+  const bottom = top + titleHeight;
   if (bottom <= top) {
     delete lane.groupTitleRect;
     return;
