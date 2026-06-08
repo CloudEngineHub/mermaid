@@ -63,6 +63,10 @@ const MAX_SCORE = 1000;
 
 /** Final/first segment shorter than this trips `edge-bend-near-endpoint`. */
 const EPS_FINAL_APPROACH = 10;
+/** Conservative marker body length used for label-vs-arrowhead clearance. */
+const EPS_MARKER_CLEARANCE_LENGTH = 10;
+/** Half-width of the marker clearance corridor around the terminal segment. */
+const EPS_MARKER_CLEARANCE_HALF_WIDTH = 7;
 /** A parallel rail closer than this to an endpoint side is still a near-end bend/band. */
 const EPS_ENDPOINT_BAND = 18;
 /** Two distinct edges sharing an attach point on a node within this distance trips `edge-shared-attachment-point`. */
@@ -106,6 +110,7 @@ export type LayoutIssueType =
   | 'edge-label-off-edge'
   | 'edge-endpoint-inside-node'
   | 'edge-label-overlaps-foreign-edge'
+  | 'edge-label-overlaps-own-arrowhead'
   | 'edge-label-overlaps-group-border';
 
 export interface Issue {
@@ -344,6 +349,73 @@ function labelRectForEdge(e: unknown): Rect | null {
   return { cx: x, cy: y, left: x - w / 2, right: x + w / 2, top: y - h / 2, bottom: y + h / 2 };
 }
 
+type EdgeTerminal = 'start' | 'end';
+
+function hasTerminalMarker(e: _Edge, terminal: EdgeTerminal): boolean {
+  const markerType = terminal === 'start' ? e.arrowTypeStart : e.arrowTypeEnd;
+  if (typeof markerType === 'string') {
+    const trimmed = markerType.trim();
+    if (trimmed.length > 0 && trimmed !== 'none' && trimmed !== 'arrow_open') {
+      return true;
+    }
+  }
+
+  if (typeof e.type !== 'string') {
+    return false;
+  }
+  // Flowchart/swimlane edges often carry marker semantics in `type`.
+  if (terminal === 'start' && e.type.startsWith('double_')) {
+    return true;
+  }
+  return terminal === 'end' && /arrow_(point|cross|circle|barb)|double_arrow/.test(e.type);
+}
+
+function terminalMarkerClearanceRect(points: Point[], terminal: EdgeTerminal): Rect | null {
+  if (points.length < 2) {
+    return null;
+  }
+
+  const tip = terminal === 'end' ? points[points.length - 1] : points[0];
+  const inner = terminal === 'end' ? points[points.length - 2] : points[1];
+  const dx = inner.x - tip.x;
+  const dy = inner.y - tip.y;
+
+  if (Math.abs(dx) <= EPS && Math.abs(dy) <= EPS) {
+    return null;
+  }
+
+  const len = EPS_MARKER_CLEARANCE_LENGTH;
+  const half = EPS_MARKER_CLEARANCE_HALF_WIDTH;
+  if (Math.abs(dy) <= EPS) {
+    const x2 = tip.x + Math.sign(dx) * len;
+    const left = Math.min(tip.x, x2);
+    const right = Math.max(tip.x, x2);
+    return {
+      cx: (left + right) / 2,
+      cy: tip.y,
+      left,
+      right,
+      top: tip.y - half,
+      bottom: tip.y + half,
+    };
+  }
+  if (Math.abs(dx) <= EPS) {
+    const y2 = tip.y + Math.sign(dy) * len;
+    const top = Math.min(tip.y, y2);
+    const bottom = Math.max(tip.y, y2);
+    return {
+      cx: tip.x,
+      cy: (top + bottom) / 2,
+      left: tip.x - half,
+      right: tip.x + half,
+      top,
+      bottom,
+    };
+  }
+
+  return null;
+}
+
 function _polylineIsOrthogonal(points: Point[]): boolean {
   for (let i = 0; i < points.length - 1; i++) {
     const a = points[i];
@@ -437,6 +509,12 @@ export function validateLayout(layout: LayoutData): ValidateLayoutResult {
   const issues: Issue[] = [];
   const nodes = layout.nodes ?? [];
   const edges = layout.edges ?? [];
+  const edgeById = new Map<string, _Edge>();
+  for (const e of edges) {
+    if (e?.id != null) {
+      edgeById.set(String(e.id), e);
+    }
+  }
   const byId = new Map<string, Node>();
   for (const n of nodes) {
     if (n?.id != null) {
@@ -948,6 +1026,38 @@ export function validateLayout(layout: LayoutData): ValidateLayoutResult {
 
     for (const { rect: labelRect, ownerEdgeId, labelNodeId } of labelEntries) {
       const who = labelNodeId ? `node "${labelNodeId}"` : `of edge "${ownerEdgeId}"`;
+      const ownerEdge = ownerEdgeId ? edgeById.get(ownerEdgeId) : undefined;
+      const ownerMeta = ownerEdgeId ? edgeMetas.find((em) => em.id === ownerEdgeId) : undefined;
+
+      // edge-label-overlaps-own-arrowhead: labels should not sit on top of
+      // their own start/end marker. This complements `edge-label-off-edge`:
+      // a label can be on its edge and still visually cover the arrowhead.
+      if (ownerEdge && ownerMeta) {
+        for (const terminal of ['start', 'end'] as const) {
+          if (!hasTerminalMarker(ownerEdge, terminal)) {
+            continue;
+          }
+          const markerRect = terminalMarkerClearanceRect(ownerMeta.normalized.points, terminal);
+          const overlap = markerRect ? rectsOverlap(labelRect, markerRect) : null;
+          if (overlap) {
+            issues.push({
+              type: 'edge-label-overlaps-own-arrowhead',
+              message: `Label ${who} overlaps ${terminal} arrowhead marker of edge "${ownerEdgeId}"`,
+              edgeId: ownerEdgeId,
+              nodeIds: labelNodeId ? [labelNodeId] : [],
+              details: {
+                terminal,
+                labelRect,
+                markerRect,
+                overlapX: overlap.overlapX,
+                overlapY: overlap.overlapY,
+                markerClearanceLength: EPS_MARKER_CLEARANCE_LENGTH,
+              },
+            });
+            break; // one marker-overlap issue per label
+          }
+        }
+      }
 
       // edge-label-overlaps-foreign-edge: any OTHER edge's polyline through it.
       for (const em of edgeMetas) {

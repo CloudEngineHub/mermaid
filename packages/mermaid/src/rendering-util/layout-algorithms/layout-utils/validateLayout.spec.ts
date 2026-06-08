@@ -710,4 +710,49 @@ describe('validateLayout new geometric issues', () => {
     const types = getIssueTypes(layout);
     expect(types).not.toContain('edge-label-overlaps-foreign-edge');
   });
+
+  it('flags edge-label-overlaps-own-arrowhead when an overlay label covers its end marker', () => {
+    const a = mkNode('A', 0, 0);
+    const b = mkNode('B', 200, 0);
+    const e = {
+      ...mkEdge('e', 'A', 'B', [
+        { x: a.x! + 20, y: 0 },
+        { x: b.x! - 20, y: 0 },
+      ]),
+      arrowTypeEnd: 'arrow_point',
+      label: 'Disagree',
+      x: 176,
+      y: 0,
+      width: 56,
+      height: 21,
+    } as unknown as Edge;
+    const layout: LayoutData = { nodes: [a, b], edges: [e], config: {} as any };
+
+    const res = validateLayout(layout);
+    const markerIssue = res.issues.find((i) => i.type === 'edge-label-overlaps-own-arrowhead');
+    expect(markerIssue).toBeDefined();
+    expect(markerIssue?.edgeId).toBe('e');
+    expect(markerIssue?.details?.terminal).toBe('end');
+  });
+
+  it('does NOT flag edge-label-overlaps-own-arrowhead when an overlay label is clear of markers', () => {
+    const a = mkNode('A', 0, 0);
+    const b = mkNode('B', 200, 0);
+    const e = {
+      ...mkEdge('e', 'A', 'B', [
+        { x: a.x! + 20, y: 0 },
+        { x: b.x! - 20, y: 0 },
+      ]),
+      arrowTypeEnd: 'arrow_point',
+      label: 'Agree',
+      x: 100,
+      y: 0,
+      width: 40,
+      height: 21,
+    } as unknown as Edge;
+    const layout: LayoutData = { nodes: [a, b], edges: [e], config: {} as any };
+
+    const types = getIssueTypes(layout);
+    expect(types).not.toContain('edge-label-overlaps-own-arrowhead');
+  });
 });
