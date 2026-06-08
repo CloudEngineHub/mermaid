@@ -114,6 +114,9 @@ export function postProcessSwimlaneLayout(layout: LayoutData, direction?: string
     shortcutRedundantOrthogonalJogs(edges, nodeByIdMap);
     anchorLabelsToPolyline(edges, nodeByIdMap);
     prepareEdgeEndpointsForRenderer(edges, nodeByIdMap);
+    liftObstacleHuggingSameSideRails(edges, nodeByIdMap);
+    anchorLabelsToPolyline(edges, nodeByIdMap);
+    prepareEdgeEndpointsForRenderer(edges, nodeByIdMap);
   };
 
   // Wybrow-style crossing cleanup for the materialized render geometry. This

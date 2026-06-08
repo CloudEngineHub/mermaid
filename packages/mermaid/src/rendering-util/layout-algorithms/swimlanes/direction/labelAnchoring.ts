@@ -146,6 +146,7 @@ export function anchorLabelsToPolyline(edges: Edge[], nodeByIdMap: Map<string, N
   // no chosen placement will trigger the hug check. 3u preserves the buffer
   // used by the old pre-label detour pass.
   const LABEL_PLACEMENT_BUFFER = 3;
+  const LABEL_LANE_MARGIN = 1;
   // Mermaid's point marker occupies roughly 10u at the edge endpoint; keep
   // labels a little farther away so the arrowhead remains visually readable.
   const LABEL_ENDPOINT_CLEARANCE = 12;
@@ -301,6 +302,51 @@ export function anchorLabelsToPolyline(edges: Edge[], nodeByIdMap: Map<string, N
         midY: a.y + (b.y - a.y) * t,
       };
     };
+    const clamp = (value: number, min: number, max: number): number =>
+      Math.min(max, Math.max(min, value));
+    const pointInsideRectInclusive = (
+      point: { midX: number; midY: number },
+      rect: RectLite
+    ): boolean =>
+      point.midX >= rect.left - EPS &&
+      point.midX <= rect.right + EPS &&
+      point.midY >= rect.top - EPS &&
+      point.midY <= rect.bottom + EPS;
+    const placementForAnchor = (anchor: {
+      midX: number;
+      midY: number;
+    }): { laneId: string; anchor: { midX: number; midY: number }; rect: RectLite } | undefined => {
+      const centeredRect = rectFromCenterSize(anchor.midX, anchor.midY, lw, lh);
+      const centeredLane = findContainingLane(centeredRect);
+      if (centeredLane) {
+        return { laneId: centeredLane, anchor, rect: centeredRect };
+      }
+
+      // If the segment is close to a lane border, keep the label box inside
+      // the lane while requiring the original segment point to remain inside
+      // that box. The validator then sees the edge passing through the label.
+      const containingLane = laneGroups.find(({ rect }) => pointInsideRectInclusive(anchor, rect));
+      if (!containingLane) {
+        return undefined;
+      }
+
+      const minX = containingLane.rect.left + lw / 2 + LABEL_LANE_MARGIN;
+      const maxX = containingLane.rect.right - lw / 2 - LABEL_LANE_MARGIN;
+      const minY = containingLane.rect.top + lh / 2 + LABEL_LANE_MARGIN;
+      const maxY = containingLane.rect.bottom - lh / 2 - LABEL_LANE_MARGIN;
+      if (minX > maxX || minY > maxY) {
+        return undefined;
+      }
+
+      const clampedAnchor = {
+        midX: clamp(anchor.midX, minX, maxX),
+        midY: clamp(anchor.midY, minY, maxY),
+      };
+      const clampedRect = rectFromCenterSize(clampedAnchor.midX, clampedAnchor.midY, lw, lh);
+      return pointInsideRectInclusive(anchor, clampedRect)
+        ? { laneId: containingLane.id, anchor: clampedAnchor, rect: clampedRect }
+        : undefined;
+    };
     const distanceAlongSegment = (
       seg: SegmentCandidate,
       anchor: { midX: number; midY: number },
@@ -339,19 +385,18 @@ export function anchorLabelsToPolyline(edges: Edge[], nodeByIdMap: Map<string, N
           if (!labelClearsTerminalEndpoints(seg, anchor)) {
             continue;
           }
-          const rect = rectFromCenterSize(anchor.midX, anchor.midY, lw, lh);
-          const laneId = findContainingLane(rect);
-          if (!laneId) {
+          const placement = placementForAnchor(anchor);
+          if (!placement) {
             continue;
           }
-          if (labelOverlapsOwnMarker(rect, pts)) {
+          if (labelOverlapsOwnMarker(placement.rect, pts)) {
             continue;
           }
-          if (overlapsPlacedLabel(labelId, rect)) {
+          if (overlapsPlacedLabel(labelId, placement.rect)) {
             continue;
           }
-          if (!labelOverlapsAnything(labelId, edge.id, rect)) {
-            return { laneId, anchor };
+          if (!labelOverlapsAnything(labelId, edge.id, placement.rect)) {
+            return { laneId: placement.laneId, anchor: placement.anchor };
           }
         }
       }
@@ -368,15 +413,14 @@ export function anchorLabelsToPolyline(edges: Edge[], nodeByIdMap: Map<string, N
         if (requireEndpointClearance && !labelClearsTerminalEndpoints(seg, anchor)) {
           continue;
         }
-        const rect = rectFromCenterSize(seg.midX, seg.midY, lw, lh);
-        const laneId = findContainingLane(rect);
+        const placement = placementForAnchor(anchor);
         if (
-          laneId &&
-          !labelOverlapsOwnMarker(rect, pts) &&
-          !overlapsPlacedLabel(labelId, rect) &&
-          !labelOverlapsAnything(labelId, edge.id, rect)
+          placement &&
+          !labelOverlapsOwnMarker(placement.rect, pts) &&
+          !overlapsPlacedLabel(labelId, placement.rect) &&
+          !labelOverlapsAnything(labelId, edge.id, placement.rect)
         ) {
-          return { laneId, anchor };
+          return { laneId: placement.laneId, anchor: placement.anchor };
         }
       }
       return undefined;
