@@ -51,6 +51,11 @@ export interface WriteBackOptions {
 
 // Captured swimlane fixtures use 21px as the stable single-line label height.
 const TOP_LANE_TITLE_BAND_HEIGHT = 21;
+const MIN_TOP_LANE_HORIZONTAL_PADDING = 20;
+
+function topLaneHorizontalPadding(lane: Node): number {
+  return Math.max(lane.padding ?? MIN_TOP_LANE_HORIZONTAL_PADDING, MIN_TOP_LANE_HORIZONTAL_PADDING);
+}
 
 function assignTopLaneTitleRect(lane: Node): void {
   const { x, y, width, height } = lane;
@@ -227,7 +232,7 @@ export function writeBackToLayoutData(
       group.height = group.height ?? 0;
     } else {
       const pad = group.padding ?? 20;
-      const horizontalPad = group.parentId ? pad : 0;
+      const horizontalPad = group.parentId ? pad : 2 * topLaneHorizontalPadding(group);
       const verticalPad = pad;
       const w = Math.max(0, maxX - minX) + horizontalPad;
       const h = Math.max(0, maxY - minY) + verticalPad;
@@ -284,8 +289,8 @@ export function writeBackToLayoutData(
         if (!b) {
           continue;
         }
-        const contentWidth = Math.max(0, b.maxX - b.minX);
-        const cx = lane.x ?? (b.minX + b.maxX) / 2;
+        const contentWidth = Math.max(0, b.maxX - b.minX) + 2 * topLaneHorizontalPadding(lane);
+        const cx = (b.minX + b.maxX) / 2;
         laneIds.push(lane.id);
         centers.push(cx);
         baseWidths.push(contentWidth);

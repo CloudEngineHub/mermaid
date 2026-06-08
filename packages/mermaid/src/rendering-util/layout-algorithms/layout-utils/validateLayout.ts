@@ -188,6 +188,10 @@ function isObstacle(node: Node): boolean {
   return false;
 }
 
+function isSwimlaneGroup(node: Node | undefined): boolean {
+  return Boolean(node?.isGroup && (node as { shape?: string }).shape === 'swimlane');
+}
+
 /** Direction from point a to point b */
 function direction(a: Point, b: Point): 'E' | 'W' | 'N' | 'S' | null {
   const dx = b.x - a.x;
@@ -661,17 +665,17 @@ export function validateLayout(layout: LayoutData): ValidateLayoutResult {
   }
 
   // ─────────────────────────────────────────────────────────────────────────────
-  // 1b) Node-vs-foreign-group border-hugging
+  // 1b) Node-vs-group border-hugging
   //
-  // A non-group node whose own border runs ALONG the rendered border of a
-  // group it does not belong to (a sibling / foreign subgraph) for a
-  // significant length is a visual defect: the node visually merges into the
-  // subgraph frame. This is the node analogue of `edge-border-hugging` and
-  // reuses the same EPS_BORDER (proximity) / L_MIN_BORDER (run length)
-  // thresholds via `segmentBorderHugLength`. The node's four sides are tested
-  // as segments against each foreign group's border rect. The node's own
-  // ancestor (containing) groups are excluded — a child legitimately sits
-  // inside its parent group's frame.
+  // A non-group node whose own border runs ALONG a rendered group border for
+  // a significant length is a visual defect: the node visually merges into the
+  // frame. For ordinary groups this catches sibling / foreign subgraphs; for
+  // swimlanes it also catches collapsed padding against the containing lane.
+  // This is the node analogue of `edge-border-hugging` and reuses the same
+  // EPS_BORDER (proximity) / L_MIN_BORDER (run length) thresholds via
+  // `segmentBorderHugLength`. The node's own ordinary ancestor groups are
+  // excluded — a child legitimately sits inside its parent frame — but
+  // swimlanes still need visible lane/content padding.
   // ─────────────────────────────────────────────────────────────────────────────
   for (const n of nodes) {
     if (n?.id == null || n.isGroup || isLabelDummy(n)) {
@@ -689,7 +693,9 @@ export function validateLayout(layout: LayoutData): ValidateLayoutResult {
       { a: { x: nr.right, y: nr.top }, b: { x: nr.right, y: nr.bottom }, orientation: 'V' },
     ];
     for (const [gId, gRect] of groupBorderRects) {
-      if (isAncestorGroup(gId, n, byId)) {
+      const groupNode = byId.get(gId);
+      const ownAncestor = isAncestorGroup(gId, n, byId);
+      if (ownAncestor && !isSwimlaneGroup(groupNode)) {
         continue;
       }
       let maxHug = 0;

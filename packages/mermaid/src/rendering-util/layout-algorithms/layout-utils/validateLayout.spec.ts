@@ -633,6 +633,31 @@ describe('validateLayout new geometric issues', () => {
     expect(types).toContain('edge-border-hugging');
   });
 
+  it('flags node-border-hugging when a child touches its own swimlane border', () => {
+    const lane: Node = {
+      id: 'lane',
+      x: 0,
+      y: 0,
+      width: 100,
+      height: 120,
+      isGroup: true,
+      shape: 'swimlane',
+    } as any;
+    const child: Node = {
+      id: 'A',
+      x: 0,
+      y: 0,
+      width: 100,
+      height: 40,
+      parentId: 'lane',
+      isGroup: false,
+    } as any;
+    const layout: LayoutData = { nodes: [lane, child], edges: [], config: {} as any };
+
+    const types = getIssueTypes(layout);
+    expect(types).toContain('node-border-hugging');
+  });
+
   it('flags edge-label-off-edge when a labelled edge polyline does not cross its own label node', () => {
     // Label-as-waypoint model: the labelled edge's polyline must pass
     // through the label node's rectangle. Here the edge runs along y=0 but
