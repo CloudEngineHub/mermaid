@@ -1548,6 +1548,238 @@ export function reassignCrossingExternalRailChannels(
   }
 }
 
+export function shortcutRedundantOrthogonalJogs(edges: any[], nodeByIdMap: Map<string, any>): void {
+  const BUFFER = 2;
+  const MAX_ITERATIONS = 8;
+
+  const { realNodeRects, labelNodeRects: labelRects } = collectNodeRectEntries(
+    nodeByIdMap.values()
+  );
+  const visibleEdges = edges.filter((edge) => !(edge as { isLayoutOnly?: boolean }).isLayoutOnly);
+
+  const pointsFor = (edge: any, replacementEdge?: any, replacement?: PointLite[]): PointLite[] =>
+    dedupeConsecutivePoints(
+      edge === replacementEdge
+        ? (replacement ?? [])
+        : ((edge as { points?: PointLite[] }).points ?? [])
+    );
+
+  const pathLength = (points: PointLite[]): number =>
+    segmentsFor(points).reduce((sum, segment) => {
+      const dx = segment.a.x - segment.b.x;
+      const dy = segment.a.y - segment.b.y;
+      return sum + Math.hypot(dx, dy);
+    }, 0);
+
+  const strictCrossingCount = (replacementEdge?: any, replacement?: PointLite[]): number => {
+    let count = 0;
+    for (let i = 0; i < visibleEdges.length; i++) {
+      const firstSegments = segmentsFor(pointsFor(visibleEdges[i], replacementEdge, replacement));
+      for (let j = i + 1; j < visibleEdges.length; j++) {
+        const secondSegments = segmentsFor(
+          pointsFor(visibleEdges[j], replacementEdge, replacement)
+        );
+        for (const firstSegment of firstSegments) {
+          for (const secondSegment of secondSegments) {
+            if (
+              orthogonalSegmentsStrictlyCross(
+                firstSegment.a,
+                firstSegment.b,
+                secondSegment.a,
+                secondSegment.b,
+                EPS_LOCAL
+              )
+            ) {
+              count++;
+            }
+          }
+        }
+      }
+    }
+    return count;
+  };
+
+  const segmentRunsAlongRectBorder = (segment: SegmentLite, rect: RectLite): boolean => {
+    if (segment.horizontal) {
+      const y = segment.a.y;
+      const onBorder = Math.abs(y - rect.top) < 1 || Math.abs(y - rect.bottom) < 1;
+      return (
+        onBorder && overlapLength(segment.a.x, segment.b.x, rect.left, rect.right) >= MIN_SHARED
+      );
+    }
+
+    if (segment.vertical) {
+      const x = segment.a.x;
+      const onBorder = Math.abs(x - rect.left) < 1 || Math.abs(x - rect.right) < 1;
+      return (
+        onBorder && overlapLength(segment.a.y, segment.b.y, rect.top, rect.bottom) >= MIN_SHARED
+      );
+    }
+
+    return false;
+  };
+
+  const endpointRectsFor = (edge: any): RectLite[] => {
+    const endpointIds = [(edge as { start?: string }).start, (edge as { end?: string }).end].filter(
+      (id): id is string => Boolean(id)
+    );
+    return endpointIds
+      .map((id) => rectOfNodeBounds(nodeByIdMap.get(id)))
+      .filter((rect): rect is RectLite => Boolean(rect));
+  };
+
+  const shortcutCandidatesAt = (points: PointLite[], index: number): PointLite[][] => {
+    if (index + 3 >= points.length) {
+      return [];
+    }
+
+    const p0 = points[index];
+    const p1 = points[index + 1];
+    const p2 = points[index + 2];
+    const p3 = points[index + 3];
+    const isHVH =
+      isHorizontalSegment(p0, p1, EPS_LOCAL) &&
+      isVerticalSegment(p1, p2, EPS_LOCAL) &&
+      isHorizontalSegment(p2, p3, EPS_LOCAL);
+    const isVHV =
+      isVerticalSegment(p0, p1, EPS_LOCAL) &&
+      isHorizontalSegment(p1, p2, EPS_LOCAL) &&
+      isVerticalSegment(p2, p3, EPS_LOCAL);
+    if (!isHVH && !isVHV) {
+      return [];
+    }
+    const outerSegmentsOppose = isHVH
+      ? Math.sign(p1.x - p0.x) !== Math.sign(p3.x - p2.x)
+      : Math.sign(p1.y - p0.y) !== Math.sign(p3.y - p2.y);
+    if (!outerSegmentsOppose) {
+      return [];
+    }
+
+    const corners =
+      sameX(p0, p3, EPS_LOCAL) || sameY(p0, p3, EPS_LOCAL)
+        ? []
+        : [
+            { x: p0.x, y: p3.y },
+            { x: p3.x, y: p0.y },
+          ];
+    const rawCandidates =
+      corners.length === 0
+        ? [[...points.slice(0, index + 1), ...points.slice(index + 3)]]
+        : corners.map((corner) => [
+            ...points.slice(0, index + 1),
+            corner,
+            ...points.slice(index + 3),
+          ]);
+
+    const seen = new Set<string>();
+    return rawCandidates
+      .map((candidate) => simplifyPolyline(dedupeConsecutivePoints(candidate)))
+      .filter((candidate) => {
+        if (segmentsFor(candidate).length !== candidate.length - 1) {
+          return false;
+        }
+        if (!candidate.some((point) => samePoint(point, p3, EPS_LOCAL))) {
+          return false;
+        }
+        const key = candidate
+          .map((point) => `${point.x.toFixed(3)},${point.y.toFixed(3)}`)
+          .join('|');
+        if (seen.has(key)) {
+          return false;
+        }
+        seen.add(key);
+        return true;
+      });
+  };
+
+  const candidateIsSafe = (
+    edge: any,
+    candidate: PointLite[],
+    currentCrossings: number
+  ): boolean => {
+    const endpointIds = [(edge as { start?: string }).start, (edge as { end?: string }).end].filter(
+      (id): id is string => Boolean(id)
+    );
+    const endpointRects = endpointRectsFor(edge);
+
+    for (const segment of segmentsFor(candidate)) {
+      if (segmentHitsAnyRect(segment.a, segment.b, realNodeRects, endpointIds, -BUFFER)) {
+        return false;
+      }
+      if (segmentHitsAnyRect(segment.a, segment.b, labelRects, [], -BUFFER)) {
+        return false;
+      }
+      if (endpointRects.some((rect) => segmentRunsAlongRectBorder(segment, rect))) {
+        return false;
+      }
+    }
+
+    for (const other of visibleEdges) {
+      if (other === edge) {
+        continue;
+      }
+      for (const candidateSegment of segmentsFor(candidate)) {
+        for (const otherSegment of segmentsFor(pointsFor(other))) {
+          if (sameAxisSegmentOverlapLength(candidateSegment, otherSegment, 0.5) >= MIN_SHARED) {
+            return false;
+          }
+        }
+      }
+    }
+
+    return strictCrossingCount(edge, candidate) <= currentCrossings;
+  };
+
+  for (let iteration = 0; iteration < MAX_ITERATIONS; iteration++) {
+    const currentCrossings = strictCrossingCount();
+    let bestEdge: { points?: PointLite[] } | undefined;
+    let bestPath: PointLite[] | undefined;
+    let bestCrossings = currentCrossings;
+    let bestBends = Number.POSITIVE_INFINITY;
+    let bestLength = Number.POSITIVE_INFINITY;
+
+    for (const edge of visibleEdges) {
+      const currentPoints = pointsFor(edge);
+      const currentBends = countOrthogonalBends(currentPoints, EPS_LOCAL);
+      const currentLength = pathLength(currentPoints);
+      for (let index = 0; index <= currentPoints.length - 4; index++) {
+        for (const candidate of shortcutCandidatesAt(currentPoints, index)) {
+          const candidateBends = countOrthogonalBends(candidate, EPS_LOCAL);
+          const candidateLength = pathLength(candidate);
+          const improvesShape =
+            candidateBends < currentBends ||
+            (candidateBends === currentBends && candidateLength < currentLength - EPS_LOCAL);
+          if (!improvesShape || !candidateIsSafe(edge, candidate, currentCrossings)) {
+            continue;
+          }
+
+          const candidateCrossings = strictCrossingCount(edge, candidate);
+          if (
+            candidateCrossings > bestCrossings ||
+            (candidateCrossings === bestCrossings &&
+              (candidateBends > bestBends ||
+                (candidateBends === bestBends && candidateLength >= bestLength)))
+          ) {
+            continue;
+          }
+
+          bestEdge = edge;
+          bestPath = candidate;
+          bestCrossings = candidateCrossings;
+          bestBends = candidateBends;
+          bestLength = candidateLength;
+        }
+      }
+    }
+
+    if (!bestEdge || !bestPath) {
+      return;
+    }
+
+    bestEdge.points = bestPath;
+  }
+}
+
 export function resolveRenderedOrthogonalCrossings(
   edges: any[],
   nodeByIdMap: Map<string, any>

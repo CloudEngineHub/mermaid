@@ -18,5 +18,8 @@ describe('Swimlanes DDLT - 15-border-hugging-lr.mmd', () => {
 
     expect(result.ok).toBe(true);
     expect(result.breakdown.crossings).toBe(0);
+    expect(
+      result.breakdown.edges.find((edge) => edge.id === 'L_27_28_0')?.points
+    ).toBeLessThanOrEqual(6);
   });
 });

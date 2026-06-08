@@ -16,6 +16,7 @@ import {
   resolveRenderedOrthogonalCrossings,
   separateSharedRenderedTerminalLanes,
   shiftLeftLaneTitleBandsLeftOfRails,
+  shortcutRedundantOrthogonalJogs,
   swapDestinationTerminalTailsToReduceCrossings,
 } from './direction/materializedGeometry.js';
 import { simplifyDetouredEdges } from './direction/detourSimplification.js';
@@ -110,6 +111,7 @@ export function postProcessSwimlaneLayout(layout: LayoutData, direction?: string
   const finalizeRenderedEdges = (): void => {
     resolveRenderedOrthogonalCrossings(edges, nodeByIdMap);
     reassignCrossingExternalRailChannels(edges, nodeByIdMap);
+    shortcutRedundantOrthogonalJogs(edges, nodeByIdMap);
     anchorLabelsToPolyline(edges, nodeByIdMap);
     prepareEdgeEndpointsForRenderer(edges, nodeByIdMap);
   };

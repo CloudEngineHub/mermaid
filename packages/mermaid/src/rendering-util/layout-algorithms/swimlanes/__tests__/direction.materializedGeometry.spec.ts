@@ -6,6 +6,7 @@ import {
   reassignCrossingExternalRailChannels,
   separateSharedRenderedTerminalLanes,
   shiftLeftLaneTitleBandsLeftOfRails,
+  shortcutRedundantOrthogonalJogs,
   swapDestinationTerminalTailsToReduceCrossings,
 } from '../direction/materializedGeometry.js';
 import {
@@ -357,5 +358,40 @@ describe('materialized render geometry cleanup', () => {
     expect(strictCrossingCount(edges)).toBe(0);
     expect(edges[0].points[1].x).toBe(-126.4);
     expect(edges[1].points[3].x).toBe(-100);
+  });
+
+  it('shortcuts a dominated orthogonal jog when clearance is preserved', () => {
+    const nodeById = new Map<string, any>([
+      ['23', { id: '23', x: 36, y: 1328, width: 232, height: 108 }],
+      ['27', { id: '27', x: 36, y: 1660, width: 232, height: 66 }],
+      ['28', { id: '28', x: 36, y: 996, width: 232, height: 108 }],
+    ]);
+    const edges: any[] = [
+      {
+        id: 'L_27_28_0',
+        start: '27',
+        end: '28',
+        points: [
+          { x: 36, y: 1544 },
+          { x: 65, y: 1544 },
+          { x: 65, y: 1467 },
+          { x: -100, y: 1467 },
+          { x: -100, y: 1132 },
+          { x: 36, y: 1132 },
+          { x: 36, y: 1050 },
+        ],
+      },
+    ];
+
+    shortcutRedundantOrthogonalJogs(edges, nodeById);
+
+    expect(edges[0].points).toEqual([
+      { x: 36, y: 1544 },
+      { x: 36, y: 1467 },
+      { x: -100, y: 1467 },
+      { x: -100, y: 1132 },
+      { x: 36, y: 1132 },
+      { x: 36, y: 1050 },
+    ]);
   });
 });
