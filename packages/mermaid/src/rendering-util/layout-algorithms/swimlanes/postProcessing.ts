@@ -10,8 +10,14 @@ import { portSwapToLShape } from './direction/portSwap.js';
 import { collapseShortTerminalStub } from './direction/terminalStub.js';
 import {
   collapseRedundantRectangularDoglegs,
+  liftObstacleHuggingSameSideRails,
+  liftTopLaneTitleBandsAboveRails,
+  reassignCrossingExternalRailChannels,
   resolveRenderedOrthogonalCrossings,
   separateSharedRenderedTerminalLanes,
+  shiftLeftLaneTitleBandsLeftOfRails,
+  shortcutRedundantOrthogonalJogs,
+  swapDestinationTerminalTailsToReduceCrossings,
 } from './direction/materializedGeometry.js';
 import { simplifyDetouredEdges } from './direction/detourSimplification.js';
 import { anchorLabelsToPolyline } from './direction/labelAnchoring.js';
@@ -93,8 +99,22 @@ export function postProcessSwimlaneLayout(layout: LayoutData, direction?: string
   // safety checks preserve obstacle clearance and the newly split lanes.
   collapseRedundantRectangularDoglegs(edges, nodeByIdMap);
 
+  // Same-side rails can be routed just inside a taller intervening node's
+  // border. Lift those rails outside the blocker before crossing cleanup.
+  liftObstacleHuggingSameSideRails(edges, nodeByIdMap);
+
+  // Some shared-destination crossings only improve when two terminal ports
+  // exchange places together. Try that bounded transaction before falling back
+  // to whole-edge reroutes.
+  swapDestinationTerminalTailsToReduceCrossings(edges, nodeByIdMap);
+
   const finalizeRenderedEdges = (): void => {
     resolveRenderedOrthogonalCrossings(edges, nodeByIdMap);
+    reassignCrossingExternalRailChannels(edges, nodeByIdMap);
+    shortcutRedundantOrthogonalJogs(edges, nodeByIdMap);
+    anchorLabelsToPolyline(edges, nodeByIdMap);
+    prepareEdgeEndpointsForRenderer(edges, nodeByIdMap);
+    liftObstacleHuggingSameSideRails(edges, nodeByIdMap);
     anchorLabelsToPolyline(edges, nodeByIdMap);
     prepareEdgeEndpointsForRenderer(edges, nodeByIdMap);
   };
@@ -106,9 +126,27 @@ export function postProcessSwimlaneLayout(layout: LayoutData, direction?: string
   // rendered crossing count or shorten an equally crossing route.
   finalizeRenderedEdges();
 
+  // Renderer endpoint preparation materializes the visible endpoint geometry.
+  // Run the shared-track pass once more on that visible shape, then refresh
+  // labels and endpoint handoff. `prepareEdgeEndpointsForRenderer` is
+  // idempotent, so unchanged edges do not accumulate duplicate endpoints.
+  nudgeSharedInteriorSubpaths(edges, nodeByIdMap);
+
   // Endpoint preparation materializes the renderer-facing terminal stubs. In
   // long return-edge cases those stubs can reveal a crossing that was not
-  // present in the pre-materialized route, so run the bounded track-swap
-  // cleanup once more and then re-prepare the endpoints it reshaped.
+  // present in the pre-materialized route, so run the bounded cleanup once
+  // more and then re-prepare the endpoints it reshaped.
   finalizeRenderedEdges();
+
+  // Swimlane title bands are visual headers, not routing obstacles. After all
+  // edge geometry is final, move the aligned title bands out of any clear rail
+  // that still crosses the title section.
+  liftTopLaneTitleBandsAboveRails(edges, nodeByIdMap);
+  shiftLeftLaneTitleBandsLeftOfRails(edges, nodeByIdMap);
+  // Moving one aligned title band can expose a second title/rail interaction
+  // after the group bounds settle. The passes are idempotent, so one bounded
+  // repeat keeps headers out of late crossing-cleanup routes without rerouting
+  // the edges again.
+  liftTopLaneTitleBandsAboveRails(edges, nodeByIdMap);
+  shiftLeftLaneTitleBandsLeftOfRails(edges, nodeByIdMap);
 }
