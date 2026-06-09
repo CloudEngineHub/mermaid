@@ -139,7 +139,21 @@ export function nudgeSharedInteriorSubpaths(edges: Edge[], nodeByIdMap: Map<stri
       : undefined;
   };
 
-  const sourceDetourCandidate = (segment: SegmentLite, shift: number): PointLite[] | undefined => {
+  type NodeRect = NonNullable<ReturnType<typeof rectOfNodeBounds>>;
+
+  interface SourceDetourContext {
+    sourceCenter: Point;
+    targetCenter: Point;
+    sourceRect: NodeRect;
+    tail: PointLite[];
+  }
+
+  const nodeCenter = (node: Node, rect: NodeRect): Point => ({
+    x: node.x ?? (rect.left + rect.right) / 2,
+    y: node.y ?? (rect.top + rect.bottom) / 2,
+  });
+
+  const sourceDetourContextFor = (segment: SegmentLite): SourceDetourContext | undefined => {
     const edge = segment.edge;
     const points = dedupeConsecutivePoints(edge.points ?? []);
     if (points.length !== 4 || segment.index !== 1) {
@@ -150,66 +164,105 @@ export function nudgeSharedInteriorSubpaths(edges: Edge[], nodeByIdMap: Map<stri
     const targetNode = edge.end ? nodeByIdMap.get(edge.end) : undefined;
     const sourceRect = sourceNode ? rectOfNodeBounds(sourceNode) : undefined;
     const targetRect = targetNode ? rectOfNodeBounds(targetNode) : undefined;
-    if (!sourceNode || !targetNode || !sourceRect || !targetRect) {
+    const tail = points.slice(segment.index + 2);
+    if (!sourceNode || !targetNode || !sourceRect || !targetRect || tail.length === 0) {
       return undefined;
     }
 
-    const sourceCenter = {
-      x: sourceNode.x ?? (sourceRect.left + sourceRect.right) / 2,
-      y: sourceNode.y ?? (sourceRect.top + sourceRect.bottom) / 2,
+    return {
+      sourceCenter: nodeCenter(sourceNode, sourceRect),
+      targetCenter: nodeCenter(targetNode, targetRect),
+      sourceRect,
+      tail,
     };
-    const targetCenter = {
-      x: targetNode.x ?? (targetRect.left + targetRect.right) / 2,
-      y: targetNode.y ?? (targetRect.top + targetRect.bottom) / 2,
-    };
-    const tail = points.slice(segment.index + 2);
-    if (tail.length === 0) {
+  };
+
+  const verticalSourceDetour = (
+    segment: SegmentLite,
+    shift: number,
+    sourceCenter: Point,
+    targetCenter: Point,
+    sourceRect: NodeRect,
+    tail: PointLite[]
+  ): PointLite[] | undefined => {
+    const targetBelow = targetCenter.y >= sourceCenter.y;
+    const sourcePortY = targetBelow ? sourceRect.bottom : sourceRect.top;
+    const stubY = sourcePortY + (targetBelow ? SOURCE_DETOUR_STUB : -SOURCE_DETOUR_STUB);
+    if (
+      (targetBelow && segment.b.y <= stubY + EPS_LOCAL) ||
+      (!targetBelow && segment.b.y >= stubY - EPS_LOCAL)
+    ) {
+      return undefined;
+    }
+
+    const railX = segment.a.x + shift;
+    return dedupeConsecutivePoints(
+      [
+        { x: sourceCenter.x, y: sourcePortY },
+        { x: sourceCenter.x, y: stubY },
+        { x: railX, y: stubY },
+        { x: railX, y: segment.b.y },
+        ...tail,
+      ],
+      EPS_LOCAL
+    );
+  };
+
+  const horizontalSourceDetour = (
+    segment: SegmentLite,
+    shift: number,
+    sourceCenter: Point,
+    targetCenter: Point,
+    sourceRect: NodeRect,
+    tail: PointLite[]
+  ): PointLite[] | undefined => {
+    const targetRight = targetCenter.x >= sourceCenter.x;
+    const sourcePortX = targetRight ? sourceRect.right : sourceRect.left;
+    const stubX = sourcePortX + (targetRight ? SOURCE_DETOUR_STUB : -SOURCE_DETOUR_STUB);
+    if (
+      (targetRight && segment.b.x <= stubX + EPS_LOCAL) ||
+      (!targetRight && segment.b.x >= stubX - EPS_LOCAL)
+    ) {
+      return undefined;
+    }
+
+    const railY = segment.a.y + shift;
+    return dedupeConsecutivePoints(
+      [
+        { x: sourcePortX, y: sourceCenter.y },
+        { x: stubX, y: sourceCenter.y },
+        { x: stubX, y: railY },
+        { x: segment.b.x, y: railY },
+        ...tail,
+      ],
+      EPS_LOCAL
+    );
+  };
+
+  const sourceDetourCandidate = (segment: SegmentLite, shift: number): PointLite[] | undefined => {
+    const context = sourceDetourContextFor(segment);
+    if (!context) {
       return undefined;
     }
 
     if (segment.vertical) {
-      const targetBelow = targetCenter.y >= sourceCenter.y;
-      const sourcePortY = targetBelow ? sourceRect.bottom : sourceRect.top;
-      const stubY = sourcePortY + (targetBelow ? SOURCE_DETOUR_STUB : -SOURCE_DETOUR_STUB);
-      if (
-        (targetBelow && segment.b.y <= stubY + EPS_LOCAL) ||
-        (!targetBelow && segment.b.y >= stubY - EPS_LOCAL)
-      ) {
-        return undefined;
-      }
-      const railX = segment.a.x + shift;
-      return dedupeConsecutivePoints(
-        [
-          { x: sourceCenter.x, y: sourcePortY },
-          { x: sourceCenter.x, y: stubY },
-          { x: railX, y: stubY },
-          { x: railX, y: segment.b.y },
-          ...tail,
-        ],
-        EPS_LOCAL
+      return verticalSourceDetour(
+        segment,
+        shift,
+        context.sourceCenter,
+        context.targetCenter,
+        context.sourceRect,
+        context.tail
       );
     }
-
     if (segment.horizontal) {
-      const targetRight = targetCenter.x >= sourceCenter.x;
-      const sourcePortX = targetRight ? sourceRect.right : sourceRect.left;
-      const stubX = sourcePortX + (targetRight ? SOURCE_DETOUR_STUB : -SOURCE_DETOUR_STUB);
-      if (
-        (targetRight && segment.b.x <= stubX + EPS_LOCAL) ||
-        (!targetRight && segment.b.x >= stubX - EPS_LOCAL)
-      ) {
-        return undefined;
-      }
-      const railY = segment.a.y + shift;
-      return dedupeConsecutivePoints(
-        [
-          { x: sourcePortX, y: sourceCenter.y },
-          { x: stubX, y: sourceCenter.y },
-          { x: stubX, y: railY },
-          { x: segment.b.x, y: railY },
-          ...tail,
-        ],
-        EPS_LOCAL
+      return horizontalSourceDetour(
+        segment,
+        shift,
+        context.sourceCenter,
+        context.targetCenter,
+        context.sourceRect,
+        context.tail
       );
     }
 

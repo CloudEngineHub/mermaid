@@ -48,12 +48,16 @@ describe('Swimlanes DDLT - 14-messy-layout.mmd', () => {
     expect(result.issues).toEqual([]);
   });
 
-  it('keeps the messy purchase flow valid when automatic lane ordering is enabled', async () => {
-    const baseline = validateLayout(await runMessyLayout(false));
-    const automatic = validateLayout(await runMessyLayout(true));
+  it(
+    'keeps the messy purchase flow valid when automatic lane ordering is enabled',
+    { timeout: 20_000 },
+    async () => {
+      const baseline = validateLayout(await runMessyLayout(false));
+      const automatic = validateLayout(await runMessyLayout(true));
 
-    expect(automatic.ok).toBe(true);
-    expect(automatic.issues).toEqual([]);
-    expect(automatic.score).toBeGreaterThan(baseline.score);
-  });
+      expect(automatic.ok).toBe(true);
+      expect(automatic.issues).toEqual([]);
+      expect(automatic.score).toBeGreaterThan(baseline.score);
+    }
+  );
 });

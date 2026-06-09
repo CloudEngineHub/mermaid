@@ -210,6 +210,60 @@ function terminalSideForSegment(
   return undefined;
 }
 
+function isHorizontalSide(side: BorderSide): boolean {
+  return side === 'left' || side === 'right';
+}
+
+function straightClearanceRange(
+  start: Point,
+  end: Point,
+  srcRect: NodeRect | undefined,
+  dstRect: NodeRect | undefined,
+  horizontal: boolean
+): { lo: number; hi: number } | undefined {
+  const ranges: { lo: number; hi: number }[] = [];
+  const srcSide = srcRect ? terminalSideForSegment(start, end, srcRect) : undefined;
+  const dstSide = dstRect ? terminalSideForSegment(end, start, dstRect) : undefined;
+
+  if (srcRect && srcSide && isHorizontalSide(srcSide) === horizontal) {
+    ranges.push(clearanceRangeForSide(srcRect, srcSide));
+  }
+  if (dstRect && dstSide && isHorizontalSide(dstSide) === horizontal) {
+    ranges.push(clearanceRangeForSide(dstRect, dstSide));
+  }
+
+  return ranges.length > 0 ? intersectRanges(ranges) : undefined;
+}
+
+function clearStraightEndpointCornerAxis(
+  start: Point,
+  end: Point,
+  srcRect: NodeRect | undefined,
+  dstRect: NodeRect | undefined,
+  horizontal: boolean
+): Point[] | undefined {
+  const range = straightClearanceRange(start, end, srcRect, dstRect, horizontal);
+  if (!range) {
+    return undefined;
+  }
+
+  const current = horizontal ? start.y : start.x;
+  const next = Math.min(range.hi, Math.max(range.lo, current));
+  if (Math.abs(next - current) < EPS) {
+    return undefined;
+  }
+
+  return horizontal
+    ? [
+        { x: start.x, y: next },
+        { x: end.x, y: next },
+      ]
+    : [
+        { x: next, y: start.y },
+        { x: next, y: end.y },
+      ];
+}
+
 function clearStraightEndpointCornerConnections(
   points: Point[],
   srcRect?: NodeRect,
@@ -221,54 +275,46 @@ function clearStraightEndpointCornerConnections(
 
   const [start, end] = points;
   if (sameY(start, end, EPS)) {
-    const ranges: { lo: number; hi: number }[] = [];
-    const srcSide = srcRect ? terminalSideForSegment(start, end, srcRect) : undefined;
-    const dstSide = dstRect ? terminalSideForSegment(end, start, dstRect) : undefined;
-    if (srcRect && srcSide && (srcSide === 'left' || srcSide === 'right')) {
-      ranges.push(clearanceRangeForSide(srcRect, srcSide));
-    }
-    if (dstRect && dstSide && (dstSide === 'left' || dstSide === 'right')) {
-      ranges.push(clearanceRangeForSide(dstRect, dstSide));
-    }
-    const range = ranges.length > 0 ? intersectRanges(ranges) : undefined;
-    if (!range) {
-      return points;
-    }
-    const y = Math.min(range.hi, Math.max(range.lo, start.y));
-    if (Math.abs(y - start.y) < EPS) {
-      return points;
-    }
-    return [
-      { x: start.x, y },
-      { x: end.x, y },
-    ];
+    return clearStraightEndpointCornerAxis(start, end, srcRect, dstRect, true) ?? points;
   }
 
   if (sameX(start, end, EPS)) {
-    const ranges: { lo: number; hi: number }[] = [];
-    const srcSide = srcRect ? terminalSideForSegment(start, end, srcRect) : undefined;
-    const dstSide = dstRect ? terminalSideForSegment(end, start, dstRect) : undefined;
-    if (srcRect && srcSide && (srcSide === 'top' || srcSide === 'bottom')) {
-      ranges.push(clearanceRangeForSide(srcRect, srcSide));
-    }
-    if (dstRect && dstSide && (dstSide === 'top' || dstSide === 'bottom')) {
-      ranges.push(clearanceRangeForSide(dstRect, dstSide));
-    }
-    const range = ranges.length > 0 ? intersectRanges(ranges) : undefined;
-    if (!range) {
-      return points;
-    }
-    const x = Math.min(range.hi, Math.max(range.lo, start.x));
-    if (Math.abs(x - start.x) < EPS) {
-      return points;
-    }
-    return [
-      { x, y: start.y },
-      { x, y: end.y },
-    ];
+    return clearStraightEndpointCornerAxis(start, end, srcRect, dstRect, false) ?? points;
   }
 
   return points;
+}
+
+function cornerClearedEndpoint(endpoint: Point, r: NodeRect, side: BorderSide): Point {
+  return isHorizontalSide(side)
+    ? { x: endpoint.x, y: clampToCornerClearance(endpoint.y, r.top, r.bottom) }
+    : { x: clampToCornerClearance(endpoint.x, r.left, r.right), y: endpoint.y };
+}
+
+function moveCollinearEndpointRun(
+  points: Point[],
+  endpointIndex: number,
+  step: 1 | -1,
+  endpoint: Point,
+  adjusted: Point,
+  horizontalTerminal: boolean
+): Point[] {
+  const next = points.map((point) => ({ ...point }));
+  for (let index = endpointIndex; index >= 0 && index < points.length; index += step) {
+    const point = points[index];
+    if (horizontalTerminal && !sameY(point, endpoint, EPS)) {
+      break;
+    }
+    if (!horizontalTerminal && !sameX(point, endpoint, EPS)) {
+      break;
+    }
+    if (horizontalTerminal) {
+      next[index].y = adjusted.y;
+    } else {
+      next[index].x = adjusted.x;
+    }
+  }
+  return next;
 }
 
 function clearEndpointCornerConnection(points: Point[], r: NodeRect, atStart: boolean): Point[] {
@@ -289,30 +335,20 @@ function clearEndpointCornerConnection(points: Point[], r: NodeRect, atStart: bo
     return points;
   }
 
-  const horizontalTerminal = side === 'left' || side === 'right';
-  const adjusted = horizontalTerminal
-    ? { x: endpoint.x, y: clampToCornerClearance(endpoint.y, r.top, r.bottom) }
-    : { x: clampToCornerClearance(endpoint.x, r.left, r.right), y: endpoint.y };
+  const horizontalTerminal = isHorizontalSide(side);
+  const adjusted = cornerClearedEndpoint(endpoint, r, side);
   if (samePoint(endpoint, adjusted, EPS)) {
     return points;
   }
 
-  const next = points.map((point) => ({ ...point }));
-  for (let index = endpointIndex; index >= 0 && index < points.length; index += step) {
-    const point = points[index];
-    if (horizontalTerminal) {
-      if (!sameY(point, endpoint, EPS)) {
-        break;
-      }
-      next[index].y = adjusted.y;
-    } else {
-      if (!sameX(point, endpoint, EPS)) {
-        break;
-      }
-      next[index].x = adjusted.x;
-    }
-  }
-  return next;
+  return moveCollinearEndpointRun(
+    points,
+    endpointIndex,
+    step,
+    endpoint,
+    adjusted,
+    horizontalTerminal
+  );
 }
 
 function borderSideForSegment(a: Point, b: Point, r: NodeRect): BorderSide | undefined {

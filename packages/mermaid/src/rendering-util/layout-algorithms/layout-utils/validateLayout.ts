@@ -319,6 +319,50 @@ function withinAttachCorridor(p: Point, ref: Point): boolean {
   return distance(p, ref) <= L_ATTACH;
 }
 
+function segmentWithinSameAttachCorridor(a: Point, b: Point, start: Point, end: Point): boolean {
+  return (
+    (withinAttachCorridor(a, start) && withinAttachCorridor(b, start)) ||
+    (withinAttachCorridor(a, end) && withinAttachCorridor(b, end))
+  );
+}
+
+function pointWithinEitherAttachCorridor(p: Point, start: Point, end: Point): boolean {
+  return withinAttachCorridor(p, start) || withinAttachCorridor(p, end);
+}
+
+function segmentEndpointsWithinAttachCorridors(seg: Segment, start: Point, end: Point): boolean {
+  return (
+    pointWithinEitherAttachCorridor(seg.a, start, end) &&
+    pointWithinEitherAttachCorridor(seg.b, start, end)
+  );
+}
+
+interface SegmentHit {
+  segmentIndex: number;
+  a: Point;
+  b: Point;
+}
+
+function firstInteriorRectHit(
+  points: Point[],
+  rect: Rect,
+  startAttach: Point,
+  endAttach: Point,
+  skip?: (a: Point, b: Point) => boolean
+): SegmentHit | undefined {
+  for (let i = 0; i < points.length - 1; i++) {
+    const a = points[i];
+    const b = points[i + 1];
+    if (segmentWithinSameAttachCorridor(a, b, startAttach, endAttach) || skip?.(a, b)) {
+      continue;
+    }
+    if (segmentIntersectsRectInterior(a, b, rect)) {
+      return { segmentIndex: i, a, b };
+    }
+  }
+  return undefined;
+}
+
 function isAncestorGroup(ancestorId: string, node: Node, byId: Map<string, Node>): boolean {
   const seen = new Set<string>();
   let cur: Node | undefined = node;
@@ -848,62 +892,38 @@ export function validateLayout(layout: LayoutData): ValidateLayoutResult {
         continue;
       }
 
-      for (let i = 0; i < points.length - 1; i++) {
-        const a = points[i];
-        const b = points[i + 1];
-        // Skip if segment is within attachment corridor of endpoints
-        const isNearStart =
-          withinAttachCorridor(a, startAttach) && withinAttachCorridor(b, startAttach);
-        const isNearEnd = withinAttachCorridor(a, endAttach) && withinAttachCorridor(b, endAttach);
-        if (isNearStart || isNearEnd) {
-          continue;
-        }
-
-        if (segmentIntersectsRectInterior(a, b, obstacleRect)) {
-          issues.push({
-            type: 'edge-intersects-obstacle',
-            message: `Edge "${edgeId}" intersects obstacle "${obstacleId}"`,
-            edgeId,
-            nodeIds: [obstacleId],
-            details: { segmentIndex: i, a, b },
-          });
-          break;
-        }
+      const hit = firstInteriorRectHit(points, obstacleRect, startAttach, endAttach);
+      if (hit) {
+        issues.push({
+          type: 'edge-intersects-obstacle',
+          message: `Edge "${edgeId}" intersects obstacle "${obstacleId}"`,
+          edgeId,
+          nodeIds: [obstacleId],
+          details: hit,
+        });
       }
     }
 
     let hitGroupTitle = false;
     for (const [groupId, titleRect] of groupTitleRects) {
-      for (let i = 0; i < points.length - 1; i++) {
-        const a = points[i];
-        const b = points[i + 1];
-        const isNearStart =
-          withinAttachCorridor(a, startAttach) && withinAttachCorridor(b, startAttach);
-        const isNearEnd = withinAttachCorridor(a, endAttach) && withinAttachCorridor(b, endAttach);
-        if (isNearStart || isNearEnd) {
-          continue;
-        }
+      const hit = firstInteriorRectHit(points, titleRect, startAttach, endAttach, (a, b) => {
         const touchesStartAttach =
           distance(a, startAttach) <= EPS || distance(b, startAttach) <= EPS;
         const touchesEndAttach = distance(a, endAttach) <= EPS || distance(b, endAttach) <= EPS;
-        const terminalOwnGroupEscape =
+        return (
           (touchesStartAttach && sNode && isAncestorGroup(groupId, sNode, byId)) ||
-          (touchesEndAttach && tNode && isAncestorGroup(groupId, tNode, byId));
-        if (terminalOwnGroupEscape) {
-          continue;
-        }
-
-        if (segmentIntersectsRectInterior(a, b, titleRect)) {
-          issues.push({
-            type: 'edge-intersects-group-title',
-            message: `Edge "${edgeId}" intersects title section of group "${groupId}"`,
-            edgeId,
-            nodeIds: [groupId],
-            details: { segmentIndex: i, a, b, titleRect },
-          });
-          hitGroupTitle = true;
-          break;
-        }
+          (touchesEndAttach && tNode && isAncestorGroup(groupId, tNode, byId))
+        );
+      });
+      if (hit) {
+        issues.push({
+          type: 'edge-intersects-group-title',
+          message: `Edge "${edgeId}" intersects title section of group "${groupId}"`,
+          edgeId,
+          nodeIds: [groupId],
+          details: { ...hit, titleRect },
+        });
+        hitGroupTitle = true;
       }
       if (hitGroupTitle) {
         break;
@@ -1042,11 +1062,7 @@ export function validateLayout(layout: LayoutData): ValidateLayoutResult {
       }
       for (const seg of normalized.segments) {
         // Skip segments where BOTH endpoints are near same edge endpoint
-        const bothNearStart =
-          withinAttachCorridor(seg.a, startAttach) && withinAttachCorridor(seg.b, startAttach);
-        const bothNearEnd =
-          withinAttachCorridor(seg.a, endAttach) && withinAttachCorridor(seg.b, endAttach);
-        if (bothNearStart || bothNearEnd) {
+        if (segmentWithinSameAttachCorridor(seg.a, seg.b, startAttach, endAttach)) {
           continue;
         }
 
@@ -1370,10 +1386,8 @@ export function validateLayout(layout: LayoutData): ValidateLayoutResult {
           if (overlap >= L_MIN_SHARED) {
             // Check if overlap is within attachment corridors of either edge
             const allInCorridor =
-              (withinAttachCorridor(s1.a, e1Start) || withinAttachCorridor(s1.a, e1End)) &&
-              (withinAttachCorridor(s1.b, e1Start) || withinAttachCorridor(s1.b, e1End)) &&
-              (withinAttachCorridor(s2.a, e2Start) || withinAttachCorridor(s2.a, e2End)) &&
-              (withinAttachCorridor(s2.b, e2Start) || withinAttachCorridor(s2.b, e2End));
+              segmentEndpointsWithinAttachCorridors(s1, e1Start, e1End) &&
+              segmentEndpointsWithinAttachCorridors(s2, e2Start, e2End);
 
             if (!allInCorridor) {
               issues.push({
@@ -1393,10 +1407,8 @@ export function validateLayout(layout: LayoutData): ValidateLayoutResult {
             gap < EPS_PARALLEL_EDGE_GAP
           ) {
             const allInCorridor =
-              (withinAttachCorridor(s1.a, e1Start) || withinAttachCorridor(s1.a, e1End)) &&
-              (withinAttachCorridor(s1.b, e1Start) || withinAttachCorridor(s1.b, e1End)) &&
-              (withinAttachCorridor(s2.a, e2Start) || withinAttachCorridor(s2.a, e2End)) &&
-              (withinAttachCorridor(s2.b, e2Start) || withinAttachCorridor(s2.b, e2End));
+              segmentEndpointsWithinAttachCorridors(s1, e1Start, e1End) &&
+              segmentEndpointsWithinAttachCorridors(s2, e2Start, e2End);
 
             if (!allInCorridor && !closeSectionsAreSharedNodeTerminalStubs(e1, s1, e2, s2)) {
               issues.push({
