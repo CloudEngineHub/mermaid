@@ -394,4 +394,33 @@ describe('materialized render geometry cleanup', () => {
       { x: 36, y: 1050 },
     ]);
   });
+
+  it('shortcuts a redundant jog even when endpoint nodes are unavailable', () => {
+    const edges: any[] = [
+      {
+        id: 'missing_endpoint_edge',
+        start: 'missing-start',
+        end: 'missing-end',
+        points: [
+          { x: 36, y: 1544 },
+          { x: 65, y: 1544 },
+          { x: 65, y: 1467 },
+          { x: -100, y: 1467 },
+          { x: -100, y: 1132 },
+          { x: 36, y: 1132 },
+          { x: 36, y: 1050 },
+        ],
+      },
+    ];
+
+    shortcutRedundantOrthogonalJogs(edges, new Map());
+
+    expect(edges[0].points).toEqual([
+      { x: 36, y: 1544 },
+      { x: 65, y: 1544 },
+      { x: 65, y: 1132 },
+      { x: 36, y: 1132 },
+      { x: 36, y: 1050 },
+    ]);
+  });
 });
