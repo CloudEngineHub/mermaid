@@ -145,6 +145,13 @@ export interface MermaidConfig {
      *
      */
     considerModelOrder?: 'NONE' | 'NODES_AND_EDGES' | 'PREFER_EDGES' | 'PREFER_NODES';
+    /**
+     * Elk specific option that keeps the entry node of a recursive flow at the top of the layout.
+     *
+     * When a flow loops back on itself (a back-edge to an earlier node), ELK's degree-based cycle-breaking has no notion of an "entry point" and may rank the first-declared node in the middle, scrambling the reading order. When enabled, the entry node of each cyclic component is pinned to the first layer so the diagram still reads from its entry. Acyclic flows always have a natural source, so this has no effect on them.
+     *
+     */
+    keepEntryNodeOnTop?: boolean;
   };
   darkMode?: boolean;
   /**
