@@ -1650,9 +1650,15 @@ export function shortcutRedundantOrthogonalJogs(
     const endpointIds = [(edge as { start?: string }).start, (edge as { end?: string }).end].filter(
       (id): id is string => Boolean(id)
     );
-    return endpointIds
-      .map((id) => rectOfNodeBounds(nodeByIdMap.get(id)))
-      .filter((rect): rect is RectLite => Boolean(rect));
+    const rects: RectLite[] = [];
+    for (const id of endpointIds) {
+      const node = nodeByIdMap.get(id);
+      const rect = node ? rectOfNodeBounds(node) : undefined;
+      if (rect) {
+        rects.push(rect);
+      }
+    }
+    return rects;
   };
 
   const shortcutCandidatesAt = (points: PointLite[], index: number): PointLite[][] => {

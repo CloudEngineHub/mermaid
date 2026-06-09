@@ -899,7 +899,7 @@ export function validateLayout(layout: LayoutData): ValidateLayoutResult {
           message: `Edge "${edgeId}" intersects obstacle "${obstacleId}"`,
           edgeId,
           nodeIds: [obstacleId],
-          details: hit,
+          details: { ...hit },
         });
       }
     }
@@ -911,8 +911,8 @@ export function validateLayout(layout: LayoutData): ValidateLayoutResult {
           distance(a, startAttach) <= EPS || distance(b, startAttach) <= EPS;
         const touchesEndAttach = distance(a, endAttach) <= EPS || distance(b, endAttach) <= EPS;
         return (
-          (touchesStartAttach && sNode && isAncestorGroup(groupId, sNode, byId)) ||
-          (touchesEndAttach && tNode && isAncestorGroup(groupId, tNode, byId))
+          (touchesStartAttach && sNode ? isAncestorGroup(groupId, sNode, byId) : false) ||
+          (touchesEndAttach && tNode ? isAncestorGroup(groupId, tNode, byId) : false)
         );
       });
       if (hit) {
