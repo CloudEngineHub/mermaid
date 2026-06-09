@@ -57,7 +57,7 @@ const config: RequiredDeep<MermaidConfig> = {
     },
   },
   class: {
-    ...defaultConfigJson.class,
+    defaultRenderer: defaultConfigJson.class.defaultRenderer,
     hideEmptyMembersBox: false,
     hierarchicalNamespaces: true,
   },
