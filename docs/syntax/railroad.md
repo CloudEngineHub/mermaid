@@ -13,14 +13,14 @@ Railroad diagrams were first popularized by Niklaus Wirth in his "Pascal User Ma
 Mermaid can render Railroad diagram visualizations from EBNF notation.
 
 ```mermaid-example
-railroad-diagram
+railroad-beta
 title "Digit Definition"
 
 digit = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ;
 ```
 
 ```mermaid
-railroad-diagram
+railroad-beta
 title "Digit Definition"
 
 digit = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ;
@@ -32,7 +32,7 @@ Railroad diagrams use EBNF (Extended Backus-Naur Form) notation to define gramma
 
 ### Basic Structure
 
-- Start with `railroad-diagram` keyword to begin the diagram
+- Start with `railroad-beta` keyword to begin the diagram
 - Optionally add a `title` followed by a quoted string
 - Define grammar rules using the format: `rule_name = definition ;`
 - Each rule must end with a semicolon (`;`)
@@ -51,13 +51,13 @@ Non-terminals are identifiers that reference other rules:
 - `identifier` - references another rule
 
 ```mermaid-example
-railroad-diagram
+railroad-beta
 letter = "a" | "b" | "c" ;
 identifier = letter ;
 ```
 
 ```mermaid
-railroad-diagram
+railroad-beta
 letter = "a" | "b" | "c" ;
 identifier = letter ;
 ```
@@ -70,12 +70,12 @@ Elements appearing one after another define a sequence:
 - ISO 14977 notation: `A , B , C`
 
 ```mermaid-example
-railroad-diagram
+railroad-beta
 greeting = "Hello" " " "World" ;
 ```
 
 ```mermaid
-railroad-diagram
+railroad-beta
 greeting = "Hello" " " "World" ;
 ```
 
@@ -84,12 +84,12 @@ greeting = "Hello" " " "World" ;
 The pipe symbol (`|`) indicates alternatives:
 
 ```mermaid-example
-railroad-diagram
+railroad-beta
 sign = "+" | "-" ;
 ```
 
 ```mermaid
-railroad-diagram
+railroad-beta
 sign = "+" | "-" ;
 ```
 
@@ -101,7 +101,7 @@ Optional elements can appear zero or one time:
 - ISO 14977 notation: `[ A ]`
 
 ```mermaid-example
-railroad-diagram
+railroad-beta
 title "Optional Sign"
 
 sign = "+" | "-" ;
@@ -110,7 +110,7 @@ digit = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ;
 ```
 
 ```mermaid
-railroad-diagram
+railroad-beta
 title "Optional Sign"
 
 sign = "+" | "-" ;
@@ -130,7 +130,7 @@ One or more repetitions:
 - W3C notation: `A+`
 
 ```mermaid-example
-railroad-diagram
+railroad-beta
 title "Identifier with Repetition"
 
 identifier = letter ( letter | digit | "_" )* ;
@@ -139,7 +139,7 @@ digit = "0" | "1" | "2" ;
 ```
 
 ```mermaid
-railroad-diagram
+railroad-beta
 title "Identifier with Repetition"
 
 identifier = letter ( letter | digit | "_" )* ;
@@ -154,13 +154,13 @@ Parentheses group elements together:
 - `( A B )`
 
 ```mermaid-example
-railroad-diagram
+railroad-beta
 expression = term ( ( "+" | "-" ) term )* ;
 term = "number" ;
 ```
 
 ```mermaid
-railroad-diagram
+railroad-beta
 expression = term ( ( "+" | "-" ) term )* ;
 term = "number" ;
 ```
@@ -191,7 +191,7 @@ The minus operator excludes certain alternatives:
 ### Simple Number Grammar
 
 ```mermaid-example
-railroad-diagram
+railroad-beta
 title "Number Grammar"
 
 sign = "+" | "-" ;
@@ -200,7 +200,7 @@ digit = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ;
 ```
 
 ```mermaid
-railroad-diagram
+railroad-beta
 title "Number Grammar"
 
 sign = "+" | "-" ;
@@ -211,7 +211,7 @@ digit = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ;
 ### Expression Grammar
 
 ```mermaid-example
-railroad-diagram
+railroad-beta
 title "Arithmetic Expression Grammar"
 
 expression = term ( ( "+" | "-" ) term )* ;
@@ -222,7 +222,7 @@ digit = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ;
 ```
 
 ```mermaid
-railroad-diagram
+railroad-beta
 title "Arithmetic Expression Grammar"
 
 expression = term ( ( "+" | "-" ) term )* ;
@@ -235,7 +235,7 @@ digit = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ;
 ### JSON Grammar (Simplified)
 
 ```mermaid-example
-railroad-diagram
+railroad-beta
 title "JSON Grammar"
 
 json = element ;
@@ -246,7 +246,7 @@ member = string ":" element ;
 ```
 
 ```mermaid
-railroad-diagram
+railroad-beta
 title "JSON Grammar"
 
 json = element ;
@@ -259,7 +259,7 @@ member = string ":" element ;
 ### URL Grammar
 
 ```mermaid-example
-railroad-diagram
+railroad-beta
 title "URL Grammar"
 
 url = protocol "://" domain path? ;
@@ -273,7 +273,7 @@ segment = letter+ ;
 ```
 
 ```mermaid
-railroad-diagram
+railroad-beta
 title "URL Grammar"
 
 url = protocol "://" domain path? ;
