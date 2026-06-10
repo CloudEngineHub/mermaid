@@ -1,6 +1,7 @@
 import { layout as dagreLayout } from 'dagre-d3-es/src/dagre/index.js';
 import * as graphlibJson from 'dagre-d3-es/src/graphlib/json.js';
 import * as graphlib from 'dagre-d3-es/src/graphlib/index.js';
+import { createLayoutElementGroups, insertMeasuredNode } from '../../createGraph.js';
 import { createCommonLayoutRenderer } from '../common/index.js';
 import { updateNodeBounds } from '../../rendering-elements/shapes/util.js';
 import {
@@ -9,7 +10,7 @@ import {
   findNonClusterChild,
   sortNodesByHierarchy,
 } from './mermaid-graphlib.js';
-import { insertNode, positionNode, setNodeElem } from '../../rendering-elements/nodes.js';
+import { positionNode, setNodeElem } from '../../rendering-elements/nodes.js';
 import { insertCluster } from '../../rendering-elements/clusters.js';
 import { insertEdgeLabel, positionEdgeLabel, insertEdge } from '../../rendering-elements/edges.js';
 import { log } from '../../../logger.js';
@@ -32,10 +33,12 @@ const getDefaultSelfLoopSide = (rankdir = 'TB') => {
   }
 };
 
-// Class diagrams also use dagre, but self-referential multiplicity labels rely on
-// the existing segmented self-loop rendering path for terminal label placement.
 const shouldMergeSelfLoopSegments = (diagramType) =>
-  diagramType === 'flowchart' || diagramType === 'flowchart-v2' || diagramType === 'stateDiagram';
+  diagramType === 'flowchart' ||
+  diagramType === 'flowchart-v2' ||
+  diagramType === 'stateDiagram' ||
+  diagramType === 'er' ||
+  diagramType === 'classDiagram';
 
 // Keep this a fixed literal allowlist — never derive keys from graph data, since node ids and
 // other graph keys are user-controlled and copying them wholesale onto LayoutData would open a
@@ -50,6 +53,7 @@ const DAGRE_NODE_LAYOUT_PROPERTIES = [
   'intersect',
   'calcIntersect',
   'diff',
+  'clusterNode',
 ];
 
 // Use dagre's dummy self-loop placement as a hint, so loops are not always forced above the node.
@@ -263,7 +267,15 @@ const measureDagreGraph = async ({
   const dir = graph.graph().rankdir;
   log.trace('Dir in recursive render - dir:', dir);
 
-  const elem = _elem.insert('g').attr('class', 'root');
+  const {
+    clusters,
+    edgePaths,
+    edgeLabels,
+    nodes,
+    rootGroups: elem,
+  } = createLayoutElementGroups(_elem, {
+    edgePathsClass: 'edgePaths',
+  });
   if (!graph.nodes()) {
     log.info('No nodes found for', graph);
   } else {
@@ -272,10 +284,6 @@ const measureDagreGraph = async ({
   if (graph.edges().length > 0) {
     log.info('Recursive edges', graph.edge(graph.edges()[0]));
   }
-  const clusters = elem.insert('g').attr('class', 'clusters');
-  const edgePaths = elem.insert('g').attr('class', 'edgePaths');
-  const edgeLabels = elem.insert('g').attr('class', 'edgeLabels');
-  const nodes = elem.insert('g').attr('class', 'nodes');
   const mergeSelfLoops = shouldMergeSelfLoopSegments(diagramType);
 
   // Insert nodes, this will insert them into the dom and each node will get a size. The size is updated
@@ -357,7 +365,7 @@ const measureDagreGraph = async ({
           // insertCluster(clusters, graph.node(v));
         } else {
           log.trace('Node - the non recursive path XAX', v, nodes, graph.node(v), dir);
-          await insertNode(nodes, graph.node(v), { config: siteConfig, dir });
+          await insertMeasuredNode(nodes, graph.node(v), { config: siteConfig, dir });
         }
       }
     })
@@ -385,10 +393,19 @@ const measureDagreGraph = async ({
         if (edge.selfLoop.order !== 1) {
           return;
         }
-        const segmentId = edge.id;
-        edge.id = edge.selfLoop.id;
-        await insertEdgeLabel(edgeLabels, edge);
-        edge.id = segmentId;
+        const labelEdge = {
+          ...edge.originalEdge,
+          ...edge,
+          id: edge.selfLoop.id,
+          startLabelLeft: edge.originalEdge?.startLabelLeft ?? edge.startLabelLeft,
+          startLabelRight: edge.originalEdge?.startLabelRight ?? edge.startLabelRight,
+          endLabelLeft: edge.originalEdge?.endLabelLeft ?? edge.endLabelLeft,
+          endLabelRight: edge.originalEdge?.endLabelRight ?? edge.endLabelRight,
+        };
+        await insertEdgeLabel(edgeLabels, labelEdge);
+        edge.width = labelEdge.width;
+        edge.height = labelEdge.height;
+        edge.labelStyle = labelEdge.labelStyle;
         return;
       }
       await insertEdgeLabel(edgeLabels, edge);
@@ -403,7 +420,7 @@ const measureDagreGraph = async ({
   return {
     elem,
     graph,
-    groups: { clusters, edgePaths },
+    groups: { clusters, edgePaths, edgeLabels, nodes, rootGroups: elem },
     diagramType,
     id,
     mergeSelfLoops,
@@ -477,13 +494,15 @@ export const applyDagreLayoutResult = (data4Layout, measuredLayout) => {
   const nodeById = new Map(data4Layout.nodes.map((node) => [node.id, node]));
 
   sortNodesByHierarchy(graph).forEach((nodeId) => {
-    const targetNode = nodeById.get(nodeId);
-    if (!targetNode) {
+    const dagreNode = normalizeDagreNode(graph, nodeId, subGraphTitleTotalMargin);
+    if (!dagreNode) {
       return;
     }
 
-    const dagreNode = normalizeDagreNode(graph, nodeId, subGraphTitleTotalMargin);
-    if (dagreNode) {
+    applyDagreNodeLayout(graph.node(nodeId), dagreNode);
+
+    const targetNode = nodeById.get(nodeId);
+    if (targetNode) {
       applyDagreNodeLayout(targetNode, dagreNode);
     }
   });
@@ -757,13 +776,24 @@ export const runDagreLayoutCore = (data4Layout, context) => {
   return measuredLayout;
 };
 
-export const paintDagreLayout = async (_data4Layout, { measure }, coreResult) => {
-  await paintDagreLayoutCore(coreResult ?? measure);
-};
+const getDagrePaintNodes = (_data4Layout, { measure }) =>
+  sortNodesByHierarchy(measure.graph)
+    .map((nodeId) => measure.graph.node(nodeId))
+    .filter(Boolean);
+
+const getDagreEdgeNode = (nodeId, _edge, { measure }) =>
+  nodeId ? measure.graph.node(nodeId) : undefined;
 
 export const render = createCommonLayoutRenderer({
   prepareLayout: prepareLayoutForDagre,
   measureLayout: measureDagreLayout,
   runLayoutCore: runDagreLayoutCore,
-  paintLayout: paintDagreLayout,
+  paintOptions: {
+    clusterDb,
+    getNodes: getDagrePaintNodes,
+    getEdgeNode: getDagreEdgeNode,
+    skipNode: (node, { measure }) => !measure.graph.hasNode(node.id),
+    isCluster: (node, { measure }) =>
+      measure.graph.hasNode(node.id) && (measure.graph.children(node.id) ?? []).length > 0,
+  },
 });
