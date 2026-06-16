@@ -38,14 +38,42 @@ const hasPerformance = typeof performance !== 'undefined' && typeof performance.
 
 const now = (): number => (hasPerformance ? performance.now() : 0);
 
-/** DevTools timeline prefix so mermaid measures are easy to spot and filter. */
+/** DevTools timeline prefix so mermaid marks/measures are easy to spot and filter. */
 const MEASURE_PREFIX = '🧜 ';
+
+/**
+ * DevTools custom-track config (Chrome 130+). Phases render as labeled, colored
+ * bars in a dedicated "Mermaid render" track instead of being lost among the
+ * generic Timings entries. Requires "Show custom tracks" in the Performance
+ * panel's capture settings. Unknown fields are ignored on older Chrome, where
+ * the entry just falls back to the Timings track.
+ */
+const DEVTOOLS_TRACK = 'Mermaid render';
+const DEVTOOLS_TRACK_GROUP = 'Mermaid';
+
+/** DevTools palette colour per phase, for at-a-glance separation. */
+const PHASE_COLORS: Record<string, string> = {
+  parse: 'tertiary',
+  prepare: 'secondary',
+  measure: 'primary',
+  layout: 'primary-dark',
+  layoutCore: 'error',
+  draw: 'primary-light',
+  paint: 'secondary-dark',
+  serialize: 'tertiary-dark',
+  render: 'primary-light',
+};
 
 export interface ProfileRecord {
   /** Label for this render (e.g. the layout name when comparing layouts). */
   label: string;
   /** The completed phase tree for the render. */
   tree: ProfileSpan;
+  /**
+   * Flat accumulators summed across the render — for sub-operations that run too
+   * many times to be tree spans (e.g. per-node `getBBox`). See {@link Profiler.tickSync}.
+   */
+  buckets: Record<string, number>;
 }
 
 class Profiler {
@@ -66,6 +94,7 @@ class Profiler {
   private readonly maxRecords = 200;
   private roots: ProfileSpan[] = [];
   private stack: ProfileSpan[] = [];
+  private buckets: Record<string, number> = {};
 
   public enable(): this {
     this.enabled = true;
@@ -84,7 +113,45 @@ class Profiler {
     }
     this.roots = [];
     this.stack = [];
+    this.buckets = {};
     this.begin(label);
+  }
+
+  /**
+   * Accumulate the wall-clock of a synchronous sub-operation into a named bucket,
+   * summed over every call within the render — for hot operations that run too
+   * often to be individual tree spans (e.g. per-node `getBBox`). Returns the
+   * function's result. No-op (just calls `fn`) unless enabled.
+   */
+  public tickSync<T>(name: string, fn: () => T): T {
+    if (!this.enabled) {
+      return fn();
+    }
+    const t0 = now();
+    try {
+      return fn();
+    } finally {
+      this.buckets[name] = (this.buckets[name] ?? 0) + (now() - t0);
+    }
+  }
+
+  /**
+   * Async variant of {@link tickSync}. WARNING: only meaningful for operations
+   * that run one-at-a-time. Do NOT use it for calls awaited concurrently (e.g.
+   * `Promise.all(nodes.map(...))`) — their wall-clocks overlap and the summed
+   * bucket balloons far past the real elapsed time. For concurrent CPU
+   * attribution use a DevTools CPU profile instead.
+   */
+  public async tick<T>(name: string, fn: () => T | Promise<T>): Promise<T> {
+    if (!this.enabled) {
+      return fn();
+    }
+    const t0 = now();
+    try {
+      return await fn();
+    } finally {
+      this.buckets[name] = (this.buckets[name] ?? 0) + (now() - t0);
+    }
   }
 
   /** End the current top-level measurement and optionally print a summary. */
@@ -99,7 +166,7 @@ class Profiler {
     const root = this.roots.at(-1);
     const label = this.runLabel ?? root?.name;
     if (root) {
-      this.records.push({ label: label ?? root.name, tree: root });
+      this.records.push({ label: label ?? root.name, tree: root, buckets: { ...this.buckets } });
       if (this.records.length > this.maxRecords) {
         this.records.splice(0, this.records.length - this.maxRecords);
       }
@@ -124,6 +191,14 @@ class Profiler {
       this.roots.push(span);
     }
     this.stack.push(span);
+    // DevTools: a labeled point marker at the phase start (Timings track).
+    if (hasPerformance && typeof performance.mark === 'function') {
+      try {
+        performance.mark(`${MEASURE_PREFIX}${name} ▶`);
+      } catch {
+        // Never let instrumentation break a render.
+      }
+    }
   }
 
   /** Close the most recently opened span. No-op unless enabled. */
@@ -139,7 +214,19 @@ class Profiler {
     span.duration = end - span.start;
     if (hasPerformance && typeof performance.measure === 'function') {
       try {
-        performance.measure(`${MEASURE_PREFIX}${span.name}`, { start: span.start, end });
+        performance.measure(`${MEASURE_PREFIX}${span.name}`, {
+          start: span.start,
+          end,
+          detail: {
+            devtools: {
+              dataType: 'track-entry',
+              track: DEVTOOLS_TRACK,
+              trackGroup: DEVTOOLS_TRACK_GROUP,
+              color: PHASE_COLORS[span.name] ?? 'primary',
+              tooltipText: `${span.name} — ${span.duration.toFixed(1)} ms`,
+            },
+          },
+        });
       } catch {
         // Some environments reject the options form; never let timing break a render.
       }
@@ -207,6 +294,13 @@ class Profiler {
       }
     };
     walk(root, 0);
+    const bucketNames = Object.keys(this.buckets);
+    if (bucketNames.length > 0) {
+      lines.push('—— buckets (summed) ——');
+      for (const name of bucketNames) {
+        lines.push(`${this.buckets[name].toFixed(1).padStart(8)}       ${name}`);
+      }
+    }
     console.log(`${MEASURE_PREFIX}mermaid render profile · ${heading}\n${lines.join('\n')}`);
   }
 }

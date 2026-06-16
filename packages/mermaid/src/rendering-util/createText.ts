@@ -4,6 +4,7 @@ import type { SVGGroup } from '../diagram-api/types.js';
 import common, { hasKatex, renderKatexSanitized, sanitizeText } from '../diagrams/common/common.js';
 import type { D3TSpanElement, D3TextElement } from '../diagrams/common/commonTypes.js';
 import { log } from '../logger.js';
+import { profiler } from '../profiler.js';
 import {
   markdownToHTML,
   markdownToLines,
@@ -174,7 +175,10 @@ function createFormattedText(
     }
   }
   if (addBackground) {
-    const bbox = textElement.node()!.getBBox();
+    const bbox =
+      injected.profiling && profiler.tickSync
+        ? profiler.tickSync('getBBox', () => textElement.node()!.getBBox())
+        : textElement.node()!.getBBox();
     const padding = 2;
     bkg
       .attr('x', bbox.x - padding)
