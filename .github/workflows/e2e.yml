@@ -248,7 +248,13 @@ jobs:
   # Batch all per-container screenshots into folder-wise composite sheets and
   # upload them to Argos in a single build. Replaces per-test Argos uploads.
   argos-batch:
-    if: ${{ env.RUN_VISUAL_TEST == 'true' && needs.detect-scope.outputs.spec_pattern != 'SKIP' && !cancelled() }}
+    if: >-
+      ${{
+        github.repository == 'mermaid-js/mermaid' &&
+        (github.event_name != 'pull_request' || !startsWith(github.head_ref, 'renovate/')) &&
+        needs.detect-scope.outputs.spec_pattern != 'SKIP' &&
+        !cancelled()
+      }}
     needs: [detect-scope, e2e]
     runs-on: ubuntu-latest
     steps:
