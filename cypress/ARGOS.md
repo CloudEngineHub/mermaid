@@ -38,7 +38,7 @@ pnpm run argos:batch
 | `ARGOS_SHEETS_DIR`        | `cypress/argos-sheets` | Output directory                    |
 | `ARGOS_TILES_PER_SHEET`   | `12`                   | Max tiles per composite sheet       |
 | `ARGOS_SHEET_COLS`        | `3`                    | Grid columns per sheet              |
-| `ARGOS_SHEET_SCALE`       | `2`                    | Output scale (2 = 2× pixels)        |
+| `ARGOS_SHEET_SCALE`       | `1`                    | Output scale (1 = native, 2 = 2× pixels) |
 | `ARGOS_TILE_WIDTH`        | `1440`                 | Fixed cell width (Cypress viewport) |
 | `ARGOS_TILE_IMAGE_HEIGHT` | `1024`                 | Fixed image slot height             |
 

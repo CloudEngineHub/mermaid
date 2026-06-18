@@ -28,8 +28,8 @@ const LABEL_FONT_SIZE = 11;
 const LABEL_PADDING = 4;
 const GRID_LINE_WIDTH = 1;
 const GRID_LINE_COLOR = '#cccccc';
-/** Default output scale for composite sheets (2 = 2× pixel dimensions). */
-export const DEFAULT_SHEET_SCALE = 2;
+/** Default output scale for composite sheets (1 = native pixel dimensions). */
+export const DEFAULT_SHEET_SCALE = 1;
 
 function scaled(value: number, scale: number): number {
   return Math.round(value * scale);
