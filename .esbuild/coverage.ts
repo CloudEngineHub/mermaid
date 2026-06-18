@@ -2,21 +2,12 @@ import { readFile } from 'node:fs/promises';
 import { transform, type Plugin } from 'esbuild';
 import { createInstrumenter } from 'istanbul-lib-instrument';
 
-/** Instrument source for Cypress e2e coverage only when explicitly requested. */
 export const coverageEnabled = process.env.MERMAID_COVERAGE === 'true';
 
 /**
- * esbuild plugin that instruments package source with istanbul so Cypress e2e
- * runs can collect coverage (`window.__coverage__`).
- *
- * Background: e2e coverage used to work via `vite-plugin-istanbul` when the
- * bundle was built with vite. When the build migrated to esbuild the
- * instrumentation was not carried over, so every e2e coverage report was empty.
- * This plugin restores it for the esbuild build.
- *
- * esbuild has no native istanbul support, so each matching file is transpiled to
- * JS first (istanbul is babel-based and cannot parse TypeScript) and then
- * instrumented before being handed back to esbuild for bundling.
+ * Instruments mermaid source with istanbul for Cypress e2e coverage. Restores
+ * what `vite-plugin-istanbul` did before the build moved from vite to esbuild.
+ * istanbul can't parse TypeScript, so each file is transpiled to JS first.
  */
 export const coveragePlugin = (): Plugin => ({
   name: 'mermaid-istanbul-coverage',
@@ -28,12 +19,9 @@ export const coveragePlugin = (): Plugin => ({
       coverageVariable: '__coverage__',
     });
 
-    // Only the mermaid package's own source. Scoping here keeps coverage focused
-    // on the library, and avoids per-file transpilation breaking bare type
-    // re-exports in generated barrels (e.g. the langium-generated parser
-    // `index.ts`), which whole-program bundling would otherwise drop. mermaid's
-    // source enforces `consistent-type-imports`, so it has no such bare exports.
-    // Generated code, mocks and tests are excluded as before.
+    // Scoped to mermaid src: per-file transpilation keeps bare type re-exports
+    // that whole-program bundling drops, breaking generated barrels (e.g. the
+    // langium parser `index.ts`); mermaid src has none (consistent-type-imports).
     build.onLoad({ filter: /packages\/mermaid\/src\/.+\.(ts|js)$/ }, async (args) => {
       if (
         args.path.includes('/node_modules/') ||
@@ -41,12 +29,10 @@ export const coveragePlugin = (): Plugin => ({
         args.path.includes('/__mocks__/') ||
         /\.(spec|test)\.[jt]s$/.test(args.path)
       ) {
-        return; // fall through to esbuild's default loading
+        return;
       }
 
       const source = await readFile(args.path, 'utf8');
-      // Transpile TS/JS to plain JS so istanbul can parse it, preserving a
-      // source map so coverage maps back to the original source lines.
       const { code, map } = await transform(source, {
         loader: args.path.endsWith('.ts') ? 'ts' : 'js',
         sourcemap: true,
