@@ -7,7 +7,7 @@
  * CLI usage:
  *   pnpm run argos:batch
  *   ARGOS_SCREENSHOT_DIR=cypress/screenshots ARGOS_SHEETS_DIR=cypress/argos-sheets
- *     ARGOS_TILES_PER_SHEET=12 ARGOS_SHEET_COLS=3 pnpm run argos:batch
+ *     ARGOS_TILES_PER_SHEET=12 ARGOS_SHEET_COLS=3 ARGOS_SHEET_SCALE=2 pnpm run argos:batch
  */
 
 import { readdir, mkdir, writeFile } from 'node:fs/promises';
@@ -18,12 +18,32 @@ import sharp from 'sharp';
 // Matches a Cypress spec-file path segment: foo.spec.js / foo.spec.ts / .cjs / .mts
 const SPEC_SEGMENT_RE = /\.spec\.[cm]?[jt]s$/;
 
-export interface Tile {
-  index: number;
-  row: number;
-  col: number;
-  name: string;
-  source: string;
+/** Fixed label band under each screenshot tile (deterministic grid sizing). */
+export const LABEL_HEIGHT = 24;
+const LABEL_FONT_SIZE = 11;
+const LABEL_PADDING = 4;
+const GRID_LINE_WIDTH = 1;
+const GRID_LINE_COLOR = '#cccccc';
+/** Default output scale for composite sheets (2 = 2× pixel dimensions). */
+export const DEFAULT_SHEET_SCALE = 2;
+
+function scaled(value: number, scale: number): number {
+  return Math.round(value * scale);
+}
+
+export interface SheetManifest {
+  sheet: string;
+  group: string;
+  grid: {
+    cols: number;
+    rows: number;
+    cellWidth: number;
+    cellHeight: number;
+    imageHeight: number;
+    labelHeight: number;
+    scale: number;
+  };
+  tiles: (Tile & { title: string })[];
 }
 
 export interface Sheet {
@@ -34,11 +54,111 @@ export interface Sheet {
   tiles: Tile[];
 }
 
-export interface SheetManifest {
-  sheet: string;
-  group: string;
-  grid: { cols: number; rows: number; cellWidth: number; cellHeight: number };
-  tiles: Tile[];
+export interface Tile {
+  index: number;
+  row: number;
+  col: number;
+  name: string;
+  source: string;
+}
+
+/** Cypress screenshot names use hyphens instead of spaces; restore for display. */
+export function formatTileTitle(name: string): string {
+  return name.replace(/-/g, ' ');
+}
+
+function escapeXml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function truncateTitle(title: string, maxWidth: number, fontSize: number, padding: number): string {
+  const maxChars = Math.floor((maxWidth - padding * 2) / (fontSize * 0.55));
+  if (title.length <= maxChars) {
+    return title;
+  }
+  return `${title.slice(0, Math.max(0, maxChars - 1))}…`;
+}
+
+function createLabelSvg(
+  title: string,
+  width: number,
+  height: number,
+  fontSize: number,
+  padding: number
+): Buffer {
+  const text = escapeXml(truncateTitle(title, width, fontSize, padding));
+  const baseline = fontSize + padding;
+  const svg = [
+    `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">`,
+    `<rect width="100%" height="100%" fill="#ffffff"/>`,
+    `<text x="${padding}" y="${baseline}" font-family="sans-serif" font-size="${fontSize}" fill="#333333">${text}</text>`,
+    `</svg>`,
+  ].join('');
+  return Buffer.from(svg);
+}
+
+async function createLabelBuffer(
+  title: string,
+  width: number,
+  height: number,
+  fontSize: number,
+  padding: number
+): Promise<Buffer> {
+  return sharp(createLabelSvg(title, width, height, fontSize, padding))
+    .png({ compressionLevel: 9 })
+    .toBuffer();
+}
+
+function createGridLinesSvg(
+  width: number,
+  height: number,
+  cols: number,
+  rows: number,
+  cellWidth: number,
+  cellHeight: number,
+  lineWidth: number
+): Buffer {
+  const lines: string[] = [];
+  for (let c = 1; c < cols; c++) {
+    const x = c * cellWidth;
+    lines.push(
+      `<line x1="${x}" y1="0" x2="${x}" y2="${height}" stroke="${GRID_LINE_COLOR}" stroke-width="${lineWidth}"/>`
+    );
+  }
+  for (let r = 1; r < rows; r++) {
+    const y = r * cellHeight;
+    lines.push(
+      `<line x1="0" y1="${y}" x2="${width}" y2="${y}" stroke="${GRID_LINE_COLOR}" stroke-width="${lineWidth}"/>`
+    );
+  }
+  const inset = lineWidth / 2;
+  lines.push(
+    `<rect x="${inset}" y="${inset}" width="${width - lineWidth}" height="${height - lineWidth}" fill="none" stroke="${GRID_LINE_COLOR}" stroke-width="${lineWidth}"/>`
+  );
+  const svg = [
+    `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">`,
+    ...lines,
+    `</svg>`,
+  ].join('');
+  return Buffer.from(svg);
+}
+
+async function createGridLinesBuffer(
+  width: number,
+  height: number,
+  cols: number,
+  rows: number,
+  cellWidth: number,
+  cellHeight: number,
+  lineWidth: number
+): Promise<Buffer> {
+  return sharp(createGridLinesSvg(width, height, cols, rows, cellWidth, cellHeight, lineWidth))
+    .png({ compressionLevel: 9 })
+    .toBuffer();
 }
 
 export interface PlanSheetsOptions {
@@ -49,11 +169,14 @@ export interface PlanSheetsOptions {
 export interface ComposeSheetOptions {
   inputDir: string;
   background?: { r: number; g: number; b: number; alpha: number };
+  /** Output scale factor (1 = native screenshot size, 2 = 2× pixels). */
+  scale?: number;
 }
 
 export interface WriteSheetsOptions {
   inputDir: string;
   outDir: string;
+  scale?: number;
 }
 
 /** Maps a screenshot path to its diagram folder (prefix before the `*.spec.*` segment). */
@@ -135,6 +258,7 @@ export async function composeSheet(
 ): Promise<{ buffer: Buffer; manifest: SheetManifest }> {
   const { inputDir } = options;
   const background = options.background ?? { r: 255, g: 255, b: 255, alpha: 1 };
+  const scale = options.scale ?? 1;
   const { cols } = plan;
 
   const dims = await Promise.all(
@@ -143,33 +267,91 @@ export async function composeSheet(
       return { width: meta.width ?? 0, height: meta.height ?? 0 };
     })
   );
-  const cellWidth = Math.max(...dims.map((d) => d.width));
-  const cellHeight = Math.max(...dims.map((d) => d.height));
+  const baseCellWidth = Math.max(...dims.map((d) => d.width));
+  const baseImageHeight = Math.max(...dims.map((d) => d.height));
+  const cellWidth = scaled(baseCellWidth, scale);
+  const imageHeight = scaled(baseImageHeight, scale);
+  const labelHeight = scaled(LABEL_HEIGHT, scale);
+  const cellHeight = imageHeight + labelHeight;
+  const labelFontSize = scaled(LABEL_FONT_SIZE, scale);
+  const labelPadding = scaled(LABEL_PADDING, scale);
+  const gridLineWidth = scaled(GRID_LINE_WIDTH, scale);
   const rows = Math.max(...plan.tiles.map((t) => t.row)) + 1;
 
-  const composites = plan.tiles.map((t) => ({
-    input: join(inputDir, t.source),
-    left: t.col * cellWidth,
-    top: t.row * cellHeight,
-  }));
+  const tileBuffers = await Promise.all(
+    plan.tiles.map((t, i) =>
+      sharp(join(inputDir, t.source))
+        .resize(scaled(dims[i].width, scale), scaled(dims[i].height, scale), {
+          kernel: sharp.kernel.lanczos3,
+        })
+        .png({ compressionLevel: 9 })
+        .toBuffer()
+    )
+  );
+
+  const labelBuffers = await Promise.all(
+    plan.tiles.map((t) =>
+      createLabelBuffer(
+        formatTileTitle(t.name),
+        cellWidth,
+        labelHeight,
+        labelFontSize,
+        labelPadding
+      )
+    )
+  );
+
+  const composites = plan.tiles.flatMap((t, i) => [
+    {
+      input: tileBuffers[i],
+      left: t.col * cellWidth,
+      top: t.row * cellHeight,
+    },
+    {
+      input: labelBuffers[i],
+      left: t.col * cellWidth,
+      top: t.row * cellHeight + imageHeight,
+    },
+  ]);
+
+  const sheetWidth = cellWidth * cols;
+  const sheetHeight = cellHeight * rows;
+  const gridBuffer = await createGridLinesBuffer(
+    sheetWidth,
+    sheetHeight,
+    cols,
+    rows,
+    cellWidth,
+    cellHeight,
+    gridLineWidth
+  );
 
   const buffer = await sharp({
-    create: { width: cellWidth * cols, height: cellHeight * rows, channels: 4, background },
+    create: { width: sheetWidth, height: sheetHeight, channels: 4, background },
   })
-    .composite(composites)
+    .composite([...composites, { input: gridBuffer, left: 0, top: 0 }])
     .png({ compressionLevel: 9 })
     .toBuffer();
 
   const manifest: SheetManifest = {
     sheet: plan.output,
     group: plan.group,
-    grid: { cols, rows, cellWidth, cellHeight },
+    grid: {
+      cols,
+      rows,
+      cellWidth,
+      cellHeight,
+      imageHeight,
+      labelHeight,
+      scale,
+    },
     tiles: plan.tiles.map((t) => ({
       index: t.index,
       row: t.row,
       col: t.col,
       name: t.name,
       source: t.source,
+      title: formatTileTitle(t.name),
     })),
   };
 
@@ -179,7 +361,10 @@ export async function composeSheet(
 /** Writes composite PNGs and sibling `.json` manifests under outDir. */
 export async function writeSheets(plans: Sheet[], options: WriteSheetsOptions): Promise<void> {
   for (const plan of plans) {
-    const { buffer, manifest } = await composeSheet(plan, { inputDir: options.inputDir });
+    const { buffer, manifest } = await composeSheet(plan, {
+      inputDir: options.inputDir,
+      scale: options.scale,
+    });
     const sheetPath = join(options.outDir, plan.output);
     await mkdir(dirname(sheetPath), { recursive: true });
     await writeFile(sheetPath, buffer);
@@ -192,10 +377,11 @@ async function main(): Promise<void> {
   const outDir = process.env.ARGOS_SHEETS_DIR ?? 'cypress/argos-sheets';
   const tilesPerSheet = Number(process.env.ARGOS_TILES_PER_SHEET ?? 12);
   const cols = Number(process.env.ARGOS_SHEET_COLS ?? 3);
+  const scale = Number(process.env.ARGOS_SHEET_SCALE ?? DEFAULT_SHEET_SCALE);
 
   const relPaths = await collectScreenshots(inputDir);
   const plans = planSheets(relPaths, { tilesPerSheet, cols });
-  await writeSheets(plans, { inputDir, outDir });
+  await writeSheets(plans, { inputDir, outDir, scale });
   process.stdout.write(
     `[argos-batch] ${relPaths.length} screenshots → ${plans.length} sheets in ${outDir}\n`
   );

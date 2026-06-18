@@ -27,6 +27,7 @@ pnpm run argos:batch
 | `ARGOS_SHEETS_DIR`      | `cypress/argos-sheets` | Output directory              |
 | `ARGOS_TILES_PER_SHEET` | `12`                   | Max tiles per composite sheet |
 | `ARGOS_SHEET_COLS`      | `3`                    | Grid columns per sheet        |
+| `ARGOS_SHEET_SCALE`     | `2`                    | Output scale (2 = 2× pixels)  |
 
 CI upload targets the **mermaid-batched** Argos project (`ARGOS_MERMAID_BATCHED_TOKEN` GitHub secret, or `ARGOS_TOKEN`).
 

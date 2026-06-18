@@ -8,6 +8,8 @@ import {
   planSheets,
   collectScreenshots,
   composeSheet,
+  formatTileTitle,
+  LABEL_HEIGHT,
 } from './argos-batch-sheets.ts';
 
 const FC = 'rendering/flowchart';
@@ -86,6 +88,14 @@ describe('planSheets', () => {
   });
 });
 
+describe('formatTileTitle', () => {
+  it('restores spaces from hyphenated Cypress screenshot names', () => {
+    expect(formatTileTitle('1-should-render-a-basic-treemap')).toBe(
+      '1 should render a basic treemap'
+    );
+  });
+});
+
 describe('compositor', () => {
   let dir: string;
 
@@ -122,16 +132,35 @@ describe('compositor', () => {
     ]);
   });
 
-  it('composes a fixed-cell grid sized to the largest tile', async () => {
+  it('composes a fixed-cell grid sized to the largest tile with title labels', async () => {
     const paths = await collectScreenshots(dir);
     const [plan] = planSheets(paths, { tilesPerSheet: 12, cols: 3 });
     const { buffer, manifest } = await composeSheet(plan, { inputDir: dir });
     const meta = await sharp(buffer).metadata();
-    // cellWidth = max(20,10,40)=40, cellHeight=max(10,30,15)=30, cols=3, rows=1
+    // cellWidth = max(20,10,40)=40, imageHeight=max(10,30,15)=30, label=24
     expect(meta.width).toBe(120);
-    expect(meta.height).toBe(30);
-    expect(manifest.grid).toStrictEqual({ cols: 3, rows: 1, cellWidth: 40, cellHeight: 30 });
-    expect(manifest.tiles[0]).toMatchObject({ name: 'a', row: 0, col: 0 });
+    expect(meta.height).toBe(30 + LABEL_HEIGHT);
+    expect(manifest.grid).toStrictEqual({
+      cols: 3,
+      rows: 1,
+      cellWidth: 40,
+      cellHeight: 30 + LABEL_HEIGHT,
+      imageHeight: 30,
+      labelHeight: LABEL_HEIGHT,
+      scale: 1,
+    });
+    expect(manifest.tiles[0]).toMatchObject({ name: 'a', title: 'a', row: 0, col: 0 });
+  });
+
+  it('scales output dimensions when scale > 1', async () => {
+    const paths = await collectScreenshots(dir);
+    const [plan] = planSheets(paths, { tilesPerSheet: 12, cols: 3 });
+    const { buffer, manifest } = await composeSheet(plan, { inputDir: dir, scale: 2 });
+    const meta = await sharp(buffer).metadata();
+    expect(meta.width).toBe(240);
+    expect(meta.height).toBe((30 + LABEL_HEIGHT) * 2);
+    expect(manifest.grid.scale).toBe(2);
+    expect(manifest.grid.cellWidth).toBe(80);
   });
 
   it('produces byte-identical output on re-run (determinism)', async () => {
