@@ -319,18 +319,14 @@ jobs:
       - name: Upload grouped sheets to Argos
         if: env.GROUP_ARGOS_IMAGES == 'true'
         env:
-          GITHUB_TOKEN: ${{ github.token }}
-          # Scoped runs captured only some folders; tell Argos this build is a
-          # partial set so absent sheets are not treated as deletions.
-          ARGOS_SUBSET: ${{ needs.detect-scope.outputs.spec_pattern != '' }}
-        run: npx argos upload cypress/argos-sheets --token "${{ secrets.ARGOS_BATCHED_TOKEN }}"
+          ARGOS_SUBSET: true
+        run: npx argos upload cypress/argos-sheets
 
       - name: Upload individual screenshots to Argos
         if: env.GROUP_ARGOS_IMAGES != 'true'
         env:
-          GITHUB_TOKEN: ${{ github.token }}
-          ARGOS_SUBSET: ${{ needs.detect-scope.outputs.spec_pattern != '' }}
-        run: npx argos upload cypress/screenshots --token "${{ secrets.ARGOS_TOKEN }}"
+          ARGOS_SUBSET: true
+        run: npx argos upload cypress/screenshots
 
   e2e-required:
     if: always()
