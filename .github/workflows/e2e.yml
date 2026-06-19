@@ -349,6 +349,14 @@ jobs:
           merge-multiple: true
           path: cypress/screenshots
 
+      # cypress-split gives each shard a different spec subset, so Cypress names
+      # screenshots relative to that shard's spec common-ancestor (the rendering/
+      # prefix is kept or stripped depending on the mix). Re-root every screenshot
+      # under its spec's true cypress/integration path so names are deterministic
+      # across runs — otherwise the same diagram churns the Argos baseline.
+      - name: Canonicalize screenshot paths
+        run: pnpm run argos:canonicalize
+
       - name: Build composite sheets
         if: env.GROUP_ARGOS_IMAGES == 'true'
         run: pnpm run argos:batch
