@@ -1,5 +1,5 @@
 ---
-'@mermaid-js/mermaid-local-editor': patch
+'@mermaid-js/mermaid-local-editor': minor
 ---
 
-feat: add local editor package for Mermaid diagrams
+feat(local editor): add local editor package for Mermaid diagrams
